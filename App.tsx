@@ -17,6 +17,7 @@ const App: React.FC = () => {
   const [scenarioData, setScenarioData] = useState<ScenarioData | null>(null);
   const [backtestResults, setBacktestResults] = useState<BacktestResults | null>(null);
   const [activeView, setActiveView] = useState<AppView>('selector');
+  const [isLoading, setIsLoading] = useState<boolean>(false); // Added isLoading state
 
   const handleInputChange = useCallback((newInputValues: Partial<InputFormData>) => {
     setInputValues(prev => {
@@ -32,41 +33,44 @@ const App: React.FC = () => {
   }, []);
   
   const handleSimulate = useCallback(() => {
-    // Contributions are always monthly, interest rate is always annual
-    const isContributionAnnual = false;
-    const isInterestRateAnnual = true;
+    setIsLoading(true);
+    setScenarioData(null); // Clear previous results immediately
+    setBacktestResults(null);
 
-    // Calculate monthly equivalent rate for informative label if needed, or for direct use in calculation if preferred
-    // For now, calculateProjection handles the annual to monthly conversion.
-    // const monthlyEquivalentRateForLabel = (Math.pow(1 + inputValues.rateValue / 100, 1 / 12) - 1) * 100;
-    
-    const currentScenarioLabel = `Projeção (Taxa Anual: ${inputValues.rateValue.toFixed(2)}% a.a., Aportes Mensais)`;
+    setTimeout(() => {
+      // Contributions are always monthly, interest rate is always annual
+      const isContributionAnnual = false;
+      const isInterestRateAnnual = true;
+      
+      const currentScenarioLabel = `Projeção (Taxa Anual: ${inputValues.rateValue.toFixed(2)}% a.a., Aportes Mensais)`;
 
-    const projectionResult = calculateProjection({
-        initialInvestment: inputValues.initialInvestment,
-        contributionAmount: inputValues.contributionValue, // This is monthly
-        isContributionAnnual: isContributionAnnual,
-        interestRateValue: inputValues.rateValue, // This is annual
-        isInterestRateAnnual: isInterestRateAnnual,
-        investmentPeriodYears: inputValues.investmentPeriodYears,
-    });
-    
-    setScenarioData({
-        label: currentScenarioLabel,
-        data: projectionResult.yearly,
-        monthlyData: projectionResult.monthly,
-    });
+      const projectionResult = calculateProjection({
+          initialInvestment: inputValues.initialInvestment,
+          contributionAmount: inputValues.contributionValue, // This is monthly
+          isContributionAnnual: isContributionAnnual,
+          interestRateValue: inputValues.rateValue, // This is annual
+          isInterestRateAnnual: isInterestRateAnnual,
+          investmentPeriodYears: inputValues.investmentPeriodYears,
+      });
+      
+      setScenarioData({
+          label: currentScenarioLabel,
+          data: projectionResult.yearly,
+          monthlyData: projectionResult.monthly,
+      });
 
-    // For backtest, contributions are annualized
-    const annualizedContributionForBacktest = inputValues.contributionValue * 12;
+      // For backtest, contributions are annualized
+      const annualizedContributionForBacktest = inputValues.contributionValue * 12;
 
-    const backtestData = calculateBacktestProjections({
-        initialInvestment: inputValues.initialInvestment,
-        annualizedContribution: annualizedContributionForBacktest,
-        effectiveAnnualRate: inputValues.effectiveAnnualRate, // This is already annual
-        investmentPeriodYears: inputValues.investmentPeriodYears
-    });
-    setBacktestResults(backtestData);
+      const backtestData = calculateBacktestProjections({
+          initialInvestment: inputValues.initialInvestment,
+          annualizedContribution: annualizedContributionForBacktest,
+          effectiveAnnualRate: inputValues.effectiveAnnualRate, // This is already annual
+          investmentPeriodYears: inputValues.investmentPeriodYears
+      });
+      setBacktestResults(backtestData);
+      setIsLoading(false);
+    }, 1000); // 1 second delay
 
   }, [inputValues]);
 
@@ -150,18 +154,33 @@ const App: React.FC = () => {
                       inputValues={inputValues}
                       onFormChange={handleInputChange}
                       onSimulate={handleSimulate}
+                      isLoading={isLoading} // Pass isLoading
                     />
                   </Card.Content>
                 </Card>
               </div>
               <div className="lg:col-span-2 space-y-6 sm:space-y-8">
-                {scenarioData && scenarioData.data.length > 0 ? (
+                {isLoading && (
+                  <Card>
+                    <Card.Content className="py-10 flex justify-center items-center">
+                       <div className="flex flex-col items-center">
+                        <svg className="animate-spin -ml-1 mr-3 h-10 w-10 text-blue-600 dark:text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <p className="text-center text-gray-500 dark:text-gray-400 mt-4">Calculando projeção...</p>
+                       </div>
+                    </Card.Content>
+                  </Card>
+                )}
+                {!isLoading && scenarioData && scenarioData.data.length > 0 && (
                   <ResultsDisplay 
                     scenarioData={scenarioData} 
                     backtestResults={backtestResults}
                     inputValues={inputValues} 
                   />
-                ) : (
+                )}
+                 {!isLoading && (!scenarioData || scenarioData.data.length === 0) && (
                   <Card>
                     <Card.Header><Card.Title>Resultados da Projeção</Card.Title></Card.Header>
                     <Card.Content>

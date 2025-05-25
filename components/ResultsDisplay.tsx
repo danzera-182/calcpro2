@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { ScenarioData, BacktestResults, InputFormData } from '../types';
+import { ScenarioData, BacktestResults, InputFormData, ProjectionPoint } from '../types';
 import LineChartComponent from './LineChartComponent';
 import DataTable from './DataTable';
 import MonthlyDataTable from './MonthlyDataTable';
@@ -45,20 +45,20 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ scenarioData, backtestR
     finalY += 7;
     doc.setFontSize(10);
 
-    let rateDescription = "";
-    let contributionDescription = "";
-
-    if (inputValues.frequencyType === 'monthly') {
-        rateDescription = `Taxa Informada: ${formatNumber(inputValues.rateValue)}% a.m. (EAR: ${formatNumber(inputValues.effectiveAnnualRate)}% a.a.)`;
-        contributionDescription = `Aporte: ${formatCurrency(inputValues.contributionValue)} (Mensal)`;
-    } else { // yearly
-        rateDescription = `Taxa Informada: ${formatNumber(inputValues.rateValue)}% a.a.`;
-        contributionDescription = `Aporte: ${formatCurrency(inputValues.contributionValue)} (Anual)`;
+    // Calculate equivalent monthly rate for display in PDF
+    const annualRateDecimal = inputValues.rateValue / 100;
+    let monthlyEquivalentRatePercent = 0;
+    if (annualRateDecimal > -1) {
+        monthlyEquivalentRatePercent = (Math.pow(1 + annualRateDecimal, 1 / 12) - 1) * 100;
+    } else {
+        monthlyEquivalentRatePercent = -100;
     }
 
+    const rateDescription = `Taxa Anual Informada: ${formatNumber(inputValues.rateValue)}% a.a. (Equivalente: ~${formatNumber(monthlyEquivalentRatePercent, 4)}% a.m.)`;
+    const contributionDescription = `Aporte: ${formatCurrency(inputValues.contributionValue)} (Mensal)`;
 
     const params = [
-      `Descrição da Projeção: ${scenarioData.label}`, // This label is already descriptive
+      `Descrição da Projeção: ${scenarioData.label}`,
       `Valor Inicial: ${formatCurrency(inputValues.initialInvestment)}`,
       contributionDescription,
       rateDescription,
@@ -144,6 +144,7 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ scenarioData, backtestR
     const disclaimers = [
         "Este é um relatório de simulação e não garante rentabilidade futura.",
         "Os valores apresentados são projeções baseadas nos parâmetros informados.",
+        "Aportes são considerados mensais e a taxa de juros informada é anual (convertida para mensal nos cálculos).",
         "Consulte um profissional financeiro para decisões de investimento."
     ];
     disclaimers.forEach(disc => {
@@ -155,9 +156,79 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ scenarioData, backtestR
     doc.save('projecao_investimento.pdf');
   };
 
+  const lastProjectionPoint = scenarioData && scenarioData.data && scenarioData.data.length > 0 
+    ? scenarioData.data[scenarioData.data.length - 1] 
+    : null;
+
+  let totalProfitability = 0;
+  if (lastProjectionPoint && lastProjectionPoint.cumulativeContributions > 0) {
+    totalProfitability = ((lastProjectionPoint.finalBalance / lastProjectionPoint.cumulativeContributions) - 1) * 100;
+  }
+  
+  const totalPeriodicContributions = lastProjectionPoint ? lastProjectionPoint.cumulativeContributions - inputValues.initialInvestment : 0;
+
 
   return (
     <>
+      {/* Summary Card - NEW */}
+      {lastProjectionPoint && (
+        <Card className="mb-6 sm:mb-8">
+          <Card.Header>
+            <Card.Title className="text-center">
+              Resumo da Projeção em {inputValues.investmentPeriodYears} Ano(s)
+            </Card.Title>
+          </Card.Header>
+          <Card.Content className="space-y-4">
+            <div className="text-center">
+              <span className="block text-sm text-gray-600 dark:text-gray-400">Valor Final Acumulado</span>
+              <span className="block text-3xl sm:text-4xl font-bold text-green-600 dark:text-green-400">
+                {formatCurrency(lastProjectionPoint.finalBalance)}
+              </span>
+            </div>
+
+            <hr className="my-3 border-gray-200 dark:border-slate-700/60" />
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm">
+              <div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-400">Total de Juros Ganhos:</span>
+                  <span className="font-medium text-green-600 dark:text-green-500">
+                    {formatCurrency(lastProjectionPoint.cumulativeInterest)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-400">Rentabilidade Total:</span>
+                  <span className="font-medium text-gray-800 dark:text-gray-200">
+                    {formatNumber(totalProfitability, 2)}%
+                  </span>
+                </div>
+              </div>
+              <div>
+                 <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-400">Total Investido (Geral):</span>
+                  <span className="font-medium text-gray-800 dark:text-gray-200">
+                    {formatCurrency(lastProjectionPoint.cumulativeContributions)}
+                  </span>
+                </div>
+                 <div className="flex justify-between pl-4 text-xs">
+                  <span className="text-gray-500 dark:text-gray-500">&bull; Valor Inicial:</span>
+                  <span className="font-normal text-gray-700 dark:text-gray-300">
+                    {formatCurrency(inputValues.initialInvestment)}
+                  </span>
+                </div>
+                <div className="flex justify-between pl-4 text-xs">
+                  <span className="text-gray-500 dark:text-gray-500">&bull; Total Aportes Mensais:</span>
+                  <span className="font-normal text-gray-700 dark:text-gray-300">
+                    {formatCurrency(totalPeriodicContributions)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </Card.Content>
+        </Card>
+      )}
+
+      {/* Existing Results Card (Chart and Tables) */}
       <Card>
         <Card.Header>
           <Card.Title>Resultados da Projeção Futura: {scenarioData.label}</Card.Title>
