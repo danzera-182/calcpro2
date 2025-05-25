@@ -1,11 +1,10 @@
-
 export interface InputFormData {
   initialInvestment: number;
-  contributionValue: number; // Value of the contribution
-  rateValue: number; // Value of the rate
-  frequencyType: 'monthly' | 'yearly'; // Dictates if rateValue & contributionValue are monthly or annual
+  contributionValue: number; // Value of the contribution (always monthly)
+  rateValue: number; // Value of the rate (always annual percentage)
+  // frequencyType: 'monthly' | 'yearly'; // REMOVED: Dictates if rateValue & contributionValue are monthly or annual
   investmentPeriodYears: number;
-  effectiveAnnualRate: number; // Calculated effective annual rate
+  effectiveAnnualRate: number; // Annual rate, will be same as rateValue as input is always annual
 }
 
 export interface ProjectionPoint {

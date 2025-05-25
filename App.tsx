@@ -18,44 +18,35 @@ const App: React.FC = () => {
   const [backtestResults, setBacktestResults] = useState<BacktestResults | null>(null);
   const [activeView, setActiveView] = useState<AppView>('selector');
 
-  const calculateEar = (rate: number, frequency: 'monthly' | 'yearly'): number => {
-    if (frequency === 'monthly') {
-      return ((1 + rate / 100) ** 12 - 1) * 100;
-    }
-    return rate; // If yearly, EAR is the rate itself
-  };
-
   const handleInputChange = useCallback((newInputValues: Partial<InputFormData>) => {
     setInputValues(prev => {
       const updatedValues = { ...prev, ...newInputValues };
       
-      if (newInputValues.rateValue !== undefined || newInputValues.frequencyType !== undefined) {
-        updatedValues.effectiveAnnualRate = calculateEar(updatedValues.rateValue, updatedValues.frequencyType);
+      // If rateValue is updated, effectiveAnnualRate should also be updated
+      // as the input rate is always considered annual.
+      if (newInputValues.rateValue !== undefined) {
+        updatedValues.effectiveAnnualRate = updatedValues.rateValue;
       }
       return updatedValues;
     });
   }, []);
   
   const handleSimulate = useCallback(() => {
-    let currentScenarioLabel: string;
-    let isContributionAnnual = false;
-    let isInterestRateAnnual = false;
+    // Contributions are always monthly, interest rate is always annual
+    const isContributionAnnual = false;
+    const isInterestRateAnnual = true;
 
-    if (inputValues.frequencyType === 'monthly') {
-      currentScenarioLabel = `Projeção Personalizada (${inputValues.rateValue.toFixed(2)}% a.m. - EAR: ${inputValues.effectiveAnnualRate.toFixed(2)}% a.a.)`;
-      isInterestRateAnnual = false;
-      isContributionAnnual = false;
-    } else { // yearly
-      currentScenarioLabel = `Projeção Personalizada (${inputValues.rateValue.toFixed(2)}% a.a.)`;
-      isInterestRateAnnual = true;
-      isContributionAnnual = true;
-    }
+    // Calculate monthly equivalent rate for informative label if needed, or for direct use in calculation if preferred
+    // For now, calculateProjection handles the annual to monthly conversion.
+    // const monthlyEquivalentRateForLabel = (Math.pow(1 + inputValues.rateValue / 100, 1 / 12) - 1) * 100;
+    
+    const currentScenarioLabel = `Projeção (Taxa Anual: ${inputValues.rateValue.toFixed(2)}% a.a., Aportes Mensais)`;
 
     const projectionResult = calculateProjection({
         initialInvestment: inputValues.initialInvestment,
-        contributionAmount: inputValues.contributionValue,
+        contributionAmount: inputValues.contributionValue, // This is monthly
         isContributionAnnual: isContributionAnnual,
-        interestRateValue: inputValues.rateValue,
+        interestRateValue: inputValues.rateValue, // This is annual
         isInterestRateAnnual: isInterestRateAnnual,
         investmentPeriodYears: inputValues.investmentPeriodYears,
     });
@@ -66,17 +57,13 @@ const App: React.FC = () => {
         monthlyData: projectionResult.monthly,
     });
 
-    let annualizedContributionForBacktest: number;
-    if (inputValues.frequencyType === 'yearly') {
-        annualizedContributionForBacktest = inputValues.contributionValue;
-    } else { // monthly
-        annualizedContributionForBacktest = inputValues.contributionValue * 12;
-    }
+    // For backtest, contributions are annualized
+    const annualizedContributionForBacktest = inputValues.contributionValue * 12;
 
     const backtestData = calculateBacktestProjections({
         initialInvestment: inputValues.initialInvestment,
         annualizedContribution: annualizedContributionForBacktest,
-        effectiveAnnualRate: inputValues.effectiveAnnualRate,
+        effectiveAnnualRate: inputValues.effectiveAnnualRate, // This is already annual
         investmentPeriodYears: inputValues.investmentPeriodYears
     });
     setBacktestResults(backtestData);
@@ -111,7 +98,7 @@ const App: React.FC = () => {
               </Card.Header>
               <Card.Content>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Simule o crescimento dos seus investimentos, visualize projeções anuais e mensais detalhadas, e compare o desempenho histórico simulado com benchmarks do mercado.
+                  Simule o crescimento dos seus investimentos com aportes mensais e taxa anual, visualize projeções detalhadas e compare com benchmarks históricos.
                 </p>
                 <Button variant="primary" className="mt-4 w-full">Acessar Calculadora</Button>
               </Card.Content>

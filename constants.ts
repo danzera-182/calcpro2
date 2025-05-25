@@ -1,13 +1,12 @@
-
 import { InputFormData, ComprehensiveInputs } from './types';
 
 export const DEFAULT_INPUT_VALUES: InputFormData = {
   initialInvestment: 1000,
-  contributionValue: 100, 
-  rateValue: 8,          
-  frequencyType: 'yearly',
+  contributionValue: 100, // This is now always monthly
+  rateValue: 8,           // This is now always annual
+  // frequencyType: 'yearly', // REMOVED
   investmentPeriodYears: 10,
-  effectiveAnnualRate: 8, 
+  effectiveAnnualRate: 8, // Will be same as rateValue, as input rate is annual
 };
 
 // Reverted to a more standard/vibrant color set
