@@ -30,18 +30,48 @@ export const convertCdiPercentageToGrossRate = (cdiPercentage: number, currentCd
  * @returns The net annual yield as a percentage (e.g., 8.5 for 8.5%).
  */
 export const calculateNetAnnualYield = (grossAnnualRatePercent: number, termDays: number): number => {
-  if (grossAnnualRatePercent < -100) { // Basic validation
-    // Allow negative rates but cap at -100% for sensibility
+  if (grossAnnualRatePercent < -100) { 
     grossAnnualRatePercent = -100;
   }
 
   const grossAnnualRateDecimal = grossAnnualRatePercent / 100;
   const irRateDecimal = getIrRate(termDays);
 
-  // Simplified calculation
   const netAnnualRateDecimal = grossAnnualRateDecimal * (1 - irRateDecimal);
 
-  return netAnnualRateDecimal * 100; // Convert back to percentage
+  return netAnnualRateDecimal * 100; 
+};
+
+/**
+ * Calculates the gross annual rate required to achieve a specific net annual yield after income tax.
+ * Taxa Bruta Anual = Taxa Líquida Anual / (1 - Alíquota IR)
+ * @param netAnnualRatePercent - The desired net annual interest rate (e.g., 8.5 for 8.5%).
+ * @param termDays - The investment term in days, used to determine the IR rate.
+ * @returns The required gross annual rate as a percentage (e.g., 10 for 10%). Returns 0 if irRate makes denominator 0.
+ */
+export const calculateGrossAnnualYieldFromNet = (netAnnualRatePercent: number, termDays: number): number => {
+  if (netAnnualRatePercent < -100) {
+    netAnnualRatePercent = -100; // Cap sensible net rate for calculation
+  }
+  
+  const netAnnualRateDecimal = netAnnualRatePercent / 100;
+  const irRateDecimal = getIrRate(termDays);
+
+  const factor = 1 - irRateDecimal;
+
+  if (factor === 0) { 
+    // This case (IR = 100%) shouldn't happen with current IR rules.
+    // If net rate is non-zero, it implies infinite gross rate. If net rate is zero, gross rate is also zero.
+    return netAnnualRateDecimal === 0 ? 0 : Infinity; // Or handle as an error/specific value
+  }
+  if (factor < 0) {
+    // This case (IR > 100%) also shouldn't happen.
+    // The sign of gross rate would flip compared to net rate.
+  }
+  
+  const grossAnnualRateDecimal = netAnnualRateDecimal / factor;
+  
+  return grossAnnualRateDecimal * 100; // Convert back to percentage
 };
 
 
@@ -51,7 +81,6 @@ export const calculateNetAnnualYield = (grossAnnualRatePercent: number, termDays
  * @returns Number of days.
  */
 export const yearsToDays = (years: number): number => {
-  // Using a common approximation. For precise financial calculations, specific day count conventions might be used.
   return Math.round(years * 365);
 };
 
@@ -61,7 +90,5 @@ export const yearsToDays = (years: number): number => {
  * @returns Number of years (as a string, formatted to 2 decimal places).
  */
 export const daysToYears = (days: number): string => {
-    // Return as a string with 2 decimal places for display,
-    // but calculations should use the more precise number.
     return (days / 365).toFixed(2);
 };

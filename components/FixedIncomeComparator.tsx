@@ -1,9 +1,9 @@
 
-import React, { useState, useCallback } from 'react';
-import { FixedIncomeInvestmentType, TermUnit, FixedIncomeResult } from '../types';
+import React, { useState, useCallback, useEffect } from 'react';
+import { FixedIncomeInvestmentType, TermUnit, FixedIncomeResult, ConversionDirection } from '../types';
 import { DEFAULT_CDI_RATE } from '../constants';
-import { getIrRate, convertCdiPercentageToGrossRate, calculateNetAnnualYield, yearsToDays } from '../utils/fixedIncomeCalculations';
-import Input from './ui/Input'; // For termValue
+import { getIrRate, convertCdiPercentageToGrossRate, calculateNetAnnualYield, yearsToDays, calculateGrossAnnualYieldFromNet } from '../utils/fixedIncomeCalculations';
+import Input from './ui/Input'; 
 import Button from './ui/Button';
 import Select from './ui/Select';
 import { Card } from './ui/Card';
@@ -13,29 +13,38 @@ import { formatNumberForDisplay } from '../utils/formatters';
 
 const FixedIncomeComparator: React.FC = () => {
   const [investmentType, setInvestmentType] = useState<FixedIncomeInvestmentType>('pre');
-  const [termValue, setTermValue] = useState<number>(2); // This can remain simple number input
-  const [termUnit, setTermUnit] = useState<TermUnit>('years');
+  const [conversionDirection, setConversionDirection] = useState<ConversionDirection>('grossToNet');
   
-  // States for formatted inputs
-  const [grossAnnualRatePre, setGrossAnnualRatePre] = useState<number | null>(12);
-  const [cdiPercentagePost, setCdiPercentagePost] = useState<number | null>(100);
+  const [inputRateValue, setInputRateValue] = useState<number | null>(12); // Default for pre, grossToNet
   const [currentCdiRatePost, setCurrentCdiRatePost] = useState<number | null>(DEFAULT_CDI_RATE);
 
+  const [termValue, setTermValue] = useState<number>(2); 
+  const [termUnit, setTermUnit] = useState<TermUnit>('years');
+  
   const [result, setResult] = useState<FixedIncomeResult | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false); // Added isLoading state
+  const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  const handleFormattedChange = (name: string, value: number | null) => {
-    if (name === 'grossAnnualRatePre') setGrossAnnualRatePre(value);
-    if (name === 'cdiPercentagePost') setCdiPercentagePost(value);
+  // Effect to reset inputRateValue when investmentType or conversionDirection changes
+  useEffect(() => {
+    setResult(null); // Clear previous results
+    if (investmentType === 'pre') {
+      setInputRateValue(conversionDirection === 'grossToNet' ? 12 : 6); // 12% gross, 6% net
+    } else { // post
+      setInputRateValue(conversionDirection === 'grossToNet' ? 100 : 85); // 100% CDI gross, 85% CDI net
+    }
+  }, [investmentType, conversionDirection]);
+
+
+  const handleFormattedRateChange = (name: string, value: number | null) => {
+    if (name === 'inputRateValue') setInputRateValue(value);
     if (name === 'currentCdiRatePost') setCurrentCdiRatePost(value);
-    setResult(null); // Clear results on change
+    setResult(null); 
   };
   
   const handleTermValueChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setTermValue(parseFloat(e.target.value) || 0);
     setResult(null);
   };
-
 
   const handleCalculate = useCallback(() => {
     setIsLoading(true);
@@ -49,69 +58,136 @@ const FixedIncomeComparator: React.FC = () => {
           return;
       }
 
-      let grossRateForCalculation: number;
-      let originalInputs: FixedIncomeResult['originalInputs'];
-      let equivalentCdiPercentageNet: number | undefined = undefined;
+      const irRateDecimal = getIrRate(termDays);
+      const irRateAppliedPercent = irRateDecimal * 100;
 
-      const ratePre = grossAnnualRatePre === null ? 0 : grossAnnualRatePre;
-      const cdiPercent = cdiPercentagePost === null ? 0 : cdiPercentagePost;
-      const cdiRate = currentCdiRatePost === null ? 0 : currentCdiRatePost;
+      const rateInput = inputRateValue ?? 0;
+      const cdiRateActual = currentCdiRatePost ?? 0;
+
+      let calculatedResult: FixedIncomeResult | null = null;
 
       if (investmentType === 'pre') {
-        if (ratePre < -100) { 
-          alert("A taxa bruta anual pré-fixada não pode ser menor que -100%.");
-          setIsLoading(false);
-          return;
+        if (conversionDirection === 'grossToNet') {
+          if (rateInput < -100) {
+            alert("A taxa bruta anual pré-fixada não pode ser menor que -100%.");
+            setIsLoading(false); return;
+          }
+          const grossRate = rateInput;
+          const netRate = calculateNetAnnualYield(grossRate, termDays);
+          calculatedResult = {
+            conversionDirection, investmentType, termDays, irRateAppliedPercent,
+            inputRateDirect: grossRate,
+            finalGrossAnnualRate: grossRate,
+            finalNetAnnualRate: netRate,
+          };
+        } else { // netToGross
+           if (rateInput < -100 / (1-irRateDecimal) && rateInput < 0 ) { // Check if net rate is excessively negative
+            alert("A taxa líquida anual desejada é muito baixa para ser compensada pela taxa bruta.");
+            setIsLoading(false); return;
+          }
+          const netRate = rateInput;
+          const grossRate = calculateGrossAnnualYieldFromNet(netRate, termDays);
+           calculatedResult = {
+            conversionDirection, investmentType, termDays, irRateAppliedPercent,
+            inputRateDirect: netRate,
+            finalGrossAnnualRate: grossRate,
+            finalNetAnnualRate: netRate,
+          };
         }
-        grossRateForCalculation = ratePre;
-        originalInputs = { grossAnnualRatePre: ratePre };
       } else { // post-fixed
-        if (cdiPercent < 0 || cdiRate <= 0) { 
-          alert("Valores para % do CDI devem ser não negativos e CDI Atual deve ser maior que zero.");
-          setIsLoading(false);
-          return;
+        if (cdiRateActual <= 0 && rateInput !== 0) { // Allow 0% CDI if target is also 0%, otherwise CDI must be positive.
+          alert("O Valor Atual do CDI deve ser maior que zero para cálculos pós-fixados significativos.");
+          setIsLoading(false); return;
         }
-        grossRateForCalculation = convertCdiPercentageToGrossRate(cdiPercent, cdiRate);
-        originalInputs = { cdiPercentagePost: cdiPercent, currentCdiRatePost: cdiRate };
+
+        if (conversionDirection === 'grossToNet') {
+          if (rateInput < 0) {
+            alert("A porcentagem do CDI (bruta) deve ser não negativa.");
+            setIsLoading(false); return;
+          }
+          const grossCdiPercentage = rateInput;
+          const actualGrossRate = convertCdiPercentageToGrossRate(grossCdiPercentage, cdiRateActual);
+          const actualNetRate = calculateNetAnnualYield(actualGrossRate, termDays);
+          const netCdiPercentage = cdiRateActual > 0 ? (actualNetRate / cdiRateActual) * 100 : 0;
+          
+          calculatedResult = {
+            conversionDirection, investmentType, termDays, irRateAppliedPercent,
+            inputRateDirect: grossCdiPercentage,
+            currentCdiRateForPost: cdiRateActual,
+            finalGrossAnnualRate: actualGrossRate,
+            finalNetAnnualRate: actualNetRate,
+            equivalentGrossCdiPercentage: grossCdiPercentage,
+            equivalentNetCdiPercentage: netCdiPercentage,
+          };
+
+        } else { // netToGross for post-fixed
+          if (rateInput < 0 && cdiRateActual > 0) { // Allow negative desired %CDI if CDI is positive
+            // Potentially very high gross %CDI if net desired is negative
+          } else if (rateInput < 0 && cdiRateActual <=0) {
+             alert("A porcentagem do CDI (líquida) desejada deve ser não negativa se o CDI atual for zero ou negativo.");
+            setIsLoading(false); return;
+          }
+
+          const netCdiPercentageDesired = rateInput;
+          const desiredActualNetRate = convertCdiPercentageToGrossRate(netCdiPercentageDesired, cdiRateActual);
+          const requiredActualGrossRate = calculateGrossAnnualYieldFromNet(desiredActualNetRate, termDays);
+          const requiredGrossCdiPercentage = cdiRateActual > 0 ? (requiredActualGrossRate / cdiRateActual) * 100 : (requiredActualGrossRate === 0 ? 0 : Infinity);
+          
+          calculatedResult = {
+            conversionDirection, investmentType, termDays, irRateAppliedPercent,
+            inputRateDirect: netCdiPercentageDesired,
+            currentCdiRateForPost: cdiRateActual,
+            finalGrossAnnualRate: requiredActualGrossRate,
+            finalNetAnnualRate: desiredActualNetRate,
+            equivalentGrossCdiPercentage: requiredGrossCdiPercentage,
+            equivalentNetCdiPercentage: netCdiPercentageDesired,
+          };
+        }
       }
-
-      const irRateDecimal = getIrRate(termDays);
-      const netYield = calculateNetAnnualYield(grossRateForCalculation, termDays);
-
-      if (investmentType === 'post' && cdiRate > 0 && netYield !== undefined && !isNaN(netYield)) {
-          equivalentCdiPercentageNet = (netYield / cdiRate) * 100;
-      }
-
-      setResult({
-        netYield,
-        irRateApplied: irRateDecimal * 100,
-        grossRateUsed: grossRateForCalculation,
-        termDays,
-        investmentType,
-        originalInputs,
-        equivalentCdiPercentageNet
-      });
+      setResult(calculatedResult);
       setIsLoading(false);
-    }, 1000); // 1 second delay
+    }, 1000);
 
-  }, [investmentType, termValue, termUnit, grossAnnualRatePre, cdiPercentagePost, currentCdiRatePost]);
+  }, [investmentType, conversionDirection, inputRateValue, currentCdiRatePost, termValue, termUnit]);
 
-  const getExplanatoryText = () => {
-    if (!result) return "";
-    const { netYield, irRateApplied, grossRateUsed, termDays, investmentType, originalInputs, equivalentCdiPercentageNet } = result;
-
-    const termText = termUnit === 'years' ? `${termValue} ano(s)` : `${termDays} dia(s)`;
-
+  const getRateInputLabel = () => {
     if (investmentType === 'pre') {
-      return `Um investimento pré-fixado de ${formatNumberForDisplay(originalInputs.grossAnnualRatePre, {minimumFractionDigits: 2, maximumFractionDigits: 2})}% a.a. (bruto) com prazo de ${termText} (IR de ${irRateApplied.toFixed(1)}%) tem uma rentabilidade líquida de ${netYield.toFixed(2)}% a.a.`;
-    } else {
-      let postFixedText = `Um investimento pós-fixado de ${formatNumberForDisplay(originalInputs.cdiPercentagePost, {minimumFractionDigits: 2, maximumFractionDigits: 2})}% do CDI (bruto), com CDI atual de ${formatNumberForDisplay(originalInputs.currentCdiRatePost, {minimumFractionDigits: 2, maximumFractionDigits: 2})}% a.a. (resultando em ${grossRateUsed.toFixed(2)}% a.a. bruto) e prazo de ${termText} (IR de ${irRateApplied.toFixed(1)}%), gera uma rentabilidade líquida de ${netYield.toFixed(2)}% a.a.`;
-      if (equivalentCdiPercentageNet !== undefined) {
-        postFixedText += `, o que equivale a ${equivalentCdiPercentageNet.toFixed(2)}% do CDI líquido de IR.`;
-      }
-      return postFixedText;
+      return conversionDirection === 'grossToNet' ? "Taxa Bruta Anual Pré-fixada (%)" : "Taxa Líquida Anual Desejada (%)";
+    } else { // post
+      return conversionDirection === 'grossToNet' ? "% do CDI (Bruto)" : "% do CDI Líquido Desejado";
     }
   };
+  
+  const getExplanatoryText = () => {
+    if (!result) return "";
+    const { 
+        finalGrossAnnualRate, finalNetAnnualRate, irRateAppliedPercent, termDays, 
+        inputRateDirect, currentCdiRateForPost, 
+        equivalentGrossCdiPercentage, equivalentNetCdiPercentage 
+    } = result;
+
+    const termDescription = termUnit === 'years' ? `${termValue} ano(s)` : `${result.termDays} dia(s)`;
+    const irText = `${formatNumberForDisplay(irRateAppliedPercent, {minimumFractionDigits:1, maximumFractionDigits:1})}%`;
+
+    if (result.investmentType === 'pre') {
+        if (result.conversionDirection === 'grossToNet') {
+            return `Um investimento pré-fixado com taxa bruta de ${formatNumberForDisplay(inputRateDirect, {minimumFractionDigits:2, maximumFractionDigits:2})}% a.a., prazo de ${termDescription} (IR de ${irText}), tem uma rentabilidade líquida de ${formatNumberForDisplay(finalNetAnnualRate, {minimumFractionDigits:2, maximumFractionDigits:2})}% a.a.`;
+        } else { // netToGross
+            return `Para obter uma rentabilidade líquida de ${formatNumberForDisplay(inputRateDirect, {minimumFractionDigits:2, maximumFractionDigits:2})}% a.a. em um investimento pré-fixado com prazo de ${termDescription} (IR de ${irText}), seria necessária uma taxa bruta de ${formatNumberForDisplay(finalGrossAnnualRate, {minimumFractionDigits:2, maximumFractionDigits:2})}% a.a.`;
+        }
+    } else { // post-fixed
+        const cdiRateText = formatNumberForDisplay(currentCdiRateForPost, {minimumFractionDigits:2, maximumFractionDigits:2});
+        if (result.conversionDirection === 'grossToNet') {
+            const inputGrossCdiText = formatNumberForDisplay(inputRateDirect, {minimumFractionDigits:0, maximumFractionDigits:2});
+            const equivNetCdiText = formatNumberForDisplay(equivalentNetCdiPercentage, {minimumFractionDigits:2, maximumFractionDigits:2});
+            return `Um investimento pós-fixado de ${inputGrossCdiText}% do CDI (bruto), com CDI de ${cdiRateText}% a.a. (rendendo ${formatNumberForDisplay(finalGrossAnnualRate, {minimumFractionDigits:2, maximumFractionDigits:2})}% a.a. bruto), prazo de ${termDescription} (IR de ${irText}), gera uma rentabilidade líquida de ${formatNumberForDisplay(finalNetAnnualRate, {minimumFractionDigits:2, maximumFractionDigits:2})}% a.a. Isso equivale a ${equivNetCdiText}% do CDI líquido.`;
+        } else { // netToGross
+            const inputNetCdiText = formatNumberForDisplay(inputRateDirect, {minimumFractionDigits:0, maximumFractionDigits:2});
+            const equivGrossCdiText = formatNumberForDisplay(equivalentGrossCdiPercentage, {minimumFractionDigits:2, maximumFractionDigits:2});
+             return `Para obter uma rentabilidade líquida de ${inputNetCdiText}% do CDI, com CDI de ${cdiRateText}% a.a. (equivalente a ${formatNumberForDisplay(finalNetAnnualRate, {minimumFractionDigits:2, maximumFractionDigits:2})}% a.a. líquido), prazo de ${termDescription} (IR de ${irText}), seria necessário um investimento que renda ${equivGrossCdiText}% do CDI bruto (ou ${formatNumberForDisplay(finalGrossAnnualRate, {minimumFractionDigits:2, maximumFractionDigits:2})}% a.a. bruto).`;
+        }
+    }
+};
   
   const commonInputProps = {
     disabled: isLoading
@@ -124,62 +200,58 @@ const FixedIncomeComparator: React.FC = () => {
   return (
     <Card>
       <Card.Header>
-        <Card.Title>Comparador de Renda Fixa (Isento vs. Tributado)</Card.Title>
+        <Card.Title>Comparador de Renda Fixa (Tributado vs. Isento)</Card.Title>
       </Card.Header>
       <Card.Content className="space-y-6">
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-blue-400 mb-1">Tipo de Rentabilidade</label>
           <div className="flex space-x-2">
-            <Button variant={investmentType === 'pre' ? 'primary' : 'secondary'} onClick={() => { setResult(null); setInvestmentType('pre');}} disabled={isLoading}>Pré-fixado</Button>
-            <Button variant={investmentType === 'post' ? 'primary' : 'secondary'} onClick={() => { setResult(null); setInvestmentType('post');}} disabled={isLoading}>Pós-fixado (% CDI)</Button>
+            <Button variant={investmentType === 'pre' ? 'primary' : 'secondary'} onClick={() => setInvestmentType('pre')} disabled={isLoading}>Pré-fixado</Button>
+            <Button variant={investmentType === 'post' ? 'primary' : 'secondary'} onClick={() => setInvestmentType('post')} disabled={isLoading}>Pós-fixado (% CDI)</Button>
           </div>
         </div>
 
-        {investmentType === 'pre' && (
-          <FormattedNumericInput
-            label="Taxa Bruta Anual Pré-fixada (%)"
-            id="grossAnnualRatePre"
-            name="grossAnnualRatePre"
-            value={grossAnnualRatePre}
-            onChange={handleFormattedChange}
-            min={-100}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-blue-400 mb-1">Direção da Conversão</label>
+          <div className="flex space-x-2">
+            <Button variant={conversionDirection === 'grossToNet' ? 'primary' : 'secondary'} onClick={() => setConversionDirection('grossToNet')} disabled={isLoading}>Bruto para Líquido</Button>
+            <Button variant={conversionDirection === 'netToGross' ? 'primary' : 'secondary'} onClick={() => setConversionDirection('netToGross')} disabled={isLoading}>Líquido para Bruto</Button>
+          </div>
+        </div>
+        
+        <FormattedNumericInput
+            label={getRateInputLabel()}
+            id="inputRateValue"
+            name="inputRateValue"
+            value={inputRateValue}
+            onChange={handleFormattedRateChange}
+            min={investmentType === 'post' && conversionDirection === 'grossToNet' ? 0 : (investmentType === 'pre' && conversionDirection === 'grossToNet' ? -100 : undefined) } // More specific min
             icon={<span className="text-gray-400 dark:text-gray-500">%</span>}
-            displayOptions={{ minimumFractionDigits: 2, maximumFractionDigits: 4 }}
+            displayOptions={investmentType === 'pre' ? 
+              { minimumFractionDigits: 2, maximumFractionDigits: 4 } : 
+              { minimumFractionDigits: 0, maximumFractionDigits: 2 } 
+            }
             {...commonInputProps}
-          />
-        )}
+        />
 
         {investmentType === 'post' && (
-          <div className="space-y-4">
-            <FormattedNumericInput
-              label="% do CDI (Ex: 100 para 100% do CDI)"
-              id="cdiPercentagePost"
-              name="cdiPercentagePost"
-              value={cdiPercentagePost}
-              onChange={handleFormattedChange}
-              min={0}
-              icon={<span className="text-gray-400 dark:text-gray-500">%</span>}
-              displayOptions={{ minimumFractionDigits: 0, maximumFractionDigits: 2 }}
-              {...commonInputProps}
-            />
             <FormattedNumericInput
               label="Valor Atual do CDI (% a.a.)"
               id="currentCdiRatePost"
               name="currentCdiRatePost"
               value={currentCdiRatePost}
-              onChange={handleFormattedChange}
-              min={0.01}
+              onChange={handleFormattedRateChange}
+              min={0.01} // CDI should be positive for meaningful post-fixed calcs
               icon={<span className="text-gray-400 dark:text-gray-500">%</span>}
               displayOptions={{ minimumFractionDigits: 2, maximumFractionDigits: 2 }}
               {...commonInputProps}
             />
-          </div>
         )}
         
         <div className="grid grid-cols-2 gap-4 items-end">
             <Input
                 label="Prazo do Investimento"
-                type="number" // Term value is integer-like, no complex formatting
+                type="number" 
                 value={termValue.toString()}
                 onChange={handleTermValueChange}
                 min="1" 
@@ -207,7 +279,7 @@ const FixedIncomeComparator: React.FC = () => {
               Calculando...
             </>
           ) : (
-            'Calcular Equivalência Líquida'
+            'Calcular Equivalência'
           )}
         </Button>
 
@@ -226,25 +298,47 @@ const FixedIncomeComparator: React.FC = () => {
         {!isLoading && result && (
           <div className="mt-6 p-5 sm:p-6 bg-gray-100 dark:bg-slate-900/70 rounded-xl shadow-inner space-y-4 sm:space-y-5">
             <h3 className="text-xl sm:text-2xl font-semibold text-center text-gray-900 dark:text-blue-300 mb-3 sm:mb-4">
-              Resultado da Comparação
+              Resultado da Conversão
             </h3>
             
             <div className="text-center mb-3 sm:mb-4">
-              <span className="block text-2xl sm:text-3xl font-bold text-green-600 dark:text-green-400">
-                {formatNumberForDisplay(result.netYield, {minimumFractionDigits: 2, maximumFractionDigits: 2})}% a.a.
-              </span>
-              <span className="block text-xs text-gray-600 dark:text-gray-400 mt-0.5">
-                Taxa Anual Líquida Equivalente (para comparar com isentos)
-              </span>
+               {result.conversionDirection === 'grossToNet' && (
+                 <>
+                    <span className="block text-xs text-gray-600 dark:text-gray-400 -mb-1">
+                        {result.investmentType === 'pre' ? 'Taxa Bruta Informada:' : '% CDI Bruto Informado:'} {formatNumberForDisplay(result.inputRateDirect, {minimumFractionDigits: result.investmentType === 'pre' ? 2:0, maximumFractionDigits: result.investmentType === 'pre' ? 4:2})}%
+                    </span>
+                    <span className="block text-2xl sm:text-3xl font-bold text-green-600 dark:text-green-400">
+                        {formatNumberForDisplay(result.finalNetAnnualRate, {minimumFractionDigits: 2, maximumFractionDigits: 2})}% a.a.
+                    </span>
+                    <span className="block text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+                        Taxa Anual Líquida Equivalente
+                    </span>
+                 </>
+               )}
+               {result.conversionDirection === 'netToGross' && (
+                 <>
+                    <span className="block text-xs text-gray-600 dark:text-gray-400 -mb-1">
+                        {result.investmentType === 'pre' ? 'Taxa Líquida Desejada:' : '% CDI Líquido Desejado:'} {formatNumberForDisplay(result.inputRateDirect, {minimumFractionDigits: result.investmentType === 'pre' ? 2:0, maximumFractionDigits: result.investmentType === 'pre' ? 4:2})}%
+                    </span>
+                    <span className="block text-2xl sm:text-3xl font-bold text-blue-600 dark:text-blue-400">
+                        {formatNumberForDisplay(result.finalGrossAnnualRate, {minimumFractionDigits: 2, maximumFractionDigits: 2})}% a.a.
+                    </span>
+                     <span className="block text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+                        Taxa Anual Bruta Necessária
+                    </span>
+                 </>
+               )}
             </div>
 
-            {result.investmentType === 'post' && result.equivalentCdiPercentageNet !== undefined && (
+            {result.investmentType === 'post' && (
               <div className="text-center mb-4 sm:mb-5">
-                <span className="block text-xl sm:text-2xl font-bold text-blue-600 dark:text-blue-400">
-                  {formatNumberForDisplay(result.equivalentCdiPercentageNet, {minimumFractionDigits: 2, maximumFractionDigits: 2})}% do CDI
+                <span className="block text-xl sm:text-2xl font-bold text-orange-500 dark:text-orange-400">
+                  {result.conversionDirection === 'grossToNet' 
+                    ? `${formatNumberForDisplay(result.equivalentNetCdiPercentage, {minimumFractionDigits: 2, maximumFractionDigits: 2})}% do CDI Líquido`
+                    : `${formatNumberForDisplay(result.equivalentGrossCdiPercentage, {minimumFractionDigits: 2, maximumFractionDigits: 2})}% do CDI Bruto`}
                 </span>
                 <span className="block text-xs text-gray-600 dark:text-gray-400 mt-0.5">
-                  Percentual do CDI Líquido Equivalente
+                  {result.conversionDirection === 'grossToNet' ? 'Equivalente em % do CDI Líquido' : 'Equivalente em % do CDI Bruto Necessário'}
                 </span>
               </div>
             )}
@@ -254,29 +348,36 @@ const FixedIncomeComparator: React.FC = () => {
             <div className="space-y-1.5 sm:space-y-2 text-sm">
               <div className="flex justify-between items-center">
                 <span className="text-gray-700 dark:text-blue-400">Alíquota de IR Aplicada:</span>
-                <span className="font-medium text-gray-900 dark:text-white">{result.irRateApplied.toFixed(1)}%</span>
+                <span className="font-medium text-gray-900 dark:text-white">{formatNumberForDisplay(result.irRateAppliedPercent, {minimumFractionDigits:1, maximumFractionDigits:1})}%</span>
               </div>
               
-              {result.investmentType === 'pre' && result.originalInputs.grossAnnualRatePre !== undefined && (
-                <div className="flex justify-between items-center">
-                    <span className="text-gray-700 dark:text-blue-400">Taxa Bruta Informada:</span>
-                    <span className="font-medium text-gray-900 dark:text-white">{formatNumberForDisplay(result.originalInputs.grossAnnualRatePre, {minimumFractionDigits: 2, maximumFractionDigits: 2})}% a.a.</span>
-                </div>
-              )}
+              <div className="flex justify-between items-center">
+                <span className="text-gray-700 dark:text-blue-400">
+                    {result.investmentType === 'pre' ? 
+                        (result.conversionDirection === 'grossToNet' ? 'Taxa Bruta Informada:' : 'Taxa Líquida Desejada:') :
+                        (result.conversionDirection === 'grossToNet' ? '% CDI Bruto Informado:' : '% CDI Líquido Desejado:')
+                    }
+                </span>
+                <span className="font-medium text-gray-900 dark:text-white">
+                    {formatNumberForDisplay(result.inputRateDirect, {minimumFractionDigits: result.investmentType === 'pre' ? 2:0, maximumFractionDigits: result.investmentType === 'pre' ? 4:2})}%
+                </span>
+              </div>
 
+              {result.investmentType === 'post' && result.currentCdiRateForPost !== undefined && (
+                 <div className="flex justify-between items-center">
+                    <span className="text-gray-700 dark:text-blue-400">CDI Atual Informado:</span>
+                    <span className="font-medium text-gray-900 dark:text-white">{formatNumberForDisplay(result.currentCdiRateForPost, {minimumFractionDigits: 2, maximumFractionDigits: 2})}% a.a.</span>
+                  </div>
+              )}
               {result.investmentType === 'post' && (
                 <>
                   <div className="flex justify-between items-center">
-                    <span className="text-gray-700 dark:text-blue-400">Taxa Bruta (Calculada do CDI):</span>
-                    <span className="font-medium text-gray-900 dark:text-white">{formatNumberForDisplay(result.grossRateUsed, {minimumFractionDigits: 2, maximumFractionDigits: 2})}% a.a.</span>
+                    <span className="text-gray-700 dark:text-blue-400">Taxa Bruta Anual Efetiva:</span>
+                    <span className="font-medium text-gray-900 dark:text-white">{formatNumberForDisplay(result.finalGrossAnnualRate, {minimumFractionDigits: 2, maximumFractionDigits: 2})}% a.a.</span>
                   </div>
-                   <div className="flex justify-between items-center">
-                    <span className="text-gray-700 dark:text-blue-400">Seu % do CDI (Bruto):</span>
-                    <span className="font-medium text-gray-900 dark:text-white">{formatNumberForDisplay(result.originalInputs.cdiPercentagePost, {minimumFractionDigits: 2, maximumFractionDigits: 2})}%</span>
-                  </div>
-                   <div className="flex justify-between items-center">
-                    <span className="text-gray-700 dark:text-blue-400">CDI Atual Informado:</span>
-                    <span className="font-medium text-gray-900 dark:text-white">{formatNumberForDisplay(result.originalInputs.currentCdiRatePost, {minimumFractionDigits: 2, maximumFractionDigits: 2})}% a.a.</span>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-700 dark:text-blue-400">Taxa Líquida Anual Efetiva:</span>
+                    <span className="font-medium text-gray-900 dark:text-white">{formatNumberForDisplay(result.finalNetAnnualRate, {minimumFractionDigits: 2, maximumFractionDigits: 2})}% a.a.</span>
                   </div>
                 </>
               )}
@@ -290,7 +391,7 @@ const FixedIncomeComparator: React.FC = () => {
             <p className="text-xs italic text-gray-600 dark:text-gray-400 text-center">{getExplanatoryText()}</p>
             
             <p className="mt-4 text-xs text-gray-500 dark:text-gray-500 text-center border-t border-gray-300 dark:border-slate-700/80 pt-3">
-              <strong>Atenção:</strong> O cálculo da taxa líquida é uma estimativa simplificada (Taxa Líquida = Taxa Bruta Anual × (1 - Alíquota IR)) 
+              <strong>Atenção:</strong> O cálculo da taxa líquida/bruta é uma estimativa simplificada (Taxa Líquida = Taxa Bruta Anual × (1 - Alíquota IR) e vice-versa) 
               e pode não refletir com exatidão o efeito de capitalização para prazos não anuais como em calculadoras financeiras detalhadas.
             </p>
           </div>

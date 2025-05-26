@@ -1,9 +1,9 @@
 
 import React, { useState, useCallback } from 'react';
-import { InputFormData, ScenarioData, BacktestResults, AppView } from './types';
+import { InputFormData, ScenarioData, AppView } from './types';
 import { DEFAULT_INPUT_VALUES } from './constants';
 import { calculateProjection } from './utils/calculations';
-import { calculateBacktestProjections } from './utils/backtestCalculations';
+// import { calculateBacktestProjections } from './utils/backtestCalculations'; // Removed
 import InputForm from './components/InputForm';
 import ResultsDisplay from './components/ResultsDisplay';
 import ThemeToggle from './components/ThemeToggle';
@@ -15,7 +15,7 @@ import ComprehensiveComparator from './components/ComprehensiveComparator'; // I
 const App: React.FC = () => {
   const [inputValues, setInputValues] = useState<InputFormData>(DEFAULT_INPUT_VALUES);
   const [scenarioData, setScenarioData] = useState<ScenarioData | null>(null);
-  const [backtestResults, setBacktestResults] = useState<BacktestResults | null>(null);
+  // const [backtestResults, setBacktestResults] = useState<BacktestResults | null>(null); // Removed
   const [activeView, setActiveView] = useState<AppView>('selector');
   const [isLoading, setIsLoading] = useState<boolean>(false); // Added isLoading state
 
@@ -25,9 +25,9 @@ const App: React.FC = () => {
       
       // If rateValue is updated, effectiveAnnualRate should also be updated
       // as the input rate is always considered annual.
-      if (newInputValues.rateValue !== undefined) {
-        updatedValues.effectiveAnnualRate = updatedValues.rateValue;
-      }
+      // if (newInputValues.rateValue !== undefined) { // Removed effectiveAnnualRate logic
+      //   updatedValues.effectiveAnnualRate = updatedValues.rateValue;
+      // }
       return updatedValues;
     });
   }, []);
@@ -35,7 +35,7 @@ const App: React.FC = () => {
   const handleSimulate = useCallback(() => {
     setIsLoading(true);
     setScenarioData(null); // Clear previous results immediately
-    setBacktestResults(null);
+    // setBacktestResults(null); // Removed
 
     setTimeout(() => {
       // Contributions are always monthly, interest rate is always annual
@@ -60,15 +60,15 @@ const App: React.FC = () => {
       });
 
       // For backtest, contributions are annualized
-      const annualizedContributionForBacktest = inputValues.contributionValue * 12;
+      // const annualizedContributionForBacktest = inputValues.contributionValue * 12; // Removed
 
-      const backtestData = calculateBacktestProjections({
-          initialInvestment: inputValues.initialInvestment,
-          annualizedContribution: annualizedContributionForBacktest,
-          effectiveAnnualRate: inputValues.effectiveAnnualRate, // This is already annual
-          investmentPeriodYears: inputValues.investmentPeriodYears
-      });
-      setBacktestResults(backtestData);
+      // const backtestData = calculateBacktestProjections({ // Removed
+      //     initialInvestment: inputValues.initialInvestment,
+      //     annualizedContribution: annualizedContributionForBacktest,
+      //     effectiveAnnualRate: inputValues.effectiveAnnualRate, 
+      //     investmentPeriodYears: inputValues.investmentPeriodYears
+      // });
+      // setBacktestResults(backtestData); // Removed
       setIsLoading(false);
     }, 1000); // 1 second delay
 
@@ -77,7 +77,7 @@ const App: React.FC = () => {
   const getSubtitle = () => {
     switch (activeView) {
       case 'compoundInterest':
-        return "Simule o futuro dos seus investimentos e compare com cenários históricos.";
+        return "Simule o futuro dos seus investimentos com projeções detalhadas."; // Updated subtitle
       case 'fixedIncomeComparator':
         return "Analise a equivalência de rentabilidade entre investimentos de renda fixa tributados e isentos.";
       case 'comprehensiveComparator':
@@ -102,7 +102,7 @@ const App: React.FC = () => {
               </Card.Header>
               <Card.Content>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Simule o crescimento dos seus investimentos com aportes mensais e taxa anual, visualize projeções detalhadas e compare com benchmarks históricos.
+                  Simule o crescimento dos seus investimentos com aportes mensais e taxa anual, visualize projeções detalhadas. {/* Updated description */}
                 </p>
                 <Button variant="primary" className="mt-4 w-full">Acessar Calculadora</Button>
               </Card.Content>
@@ -176,7 +176,7 @@ const App: React.FC = () => {
                 {!isLoading && scenarioData && scenarioData.data.length > 0 && (
                   <ResultsDisplay 
                     scenarioData={scenarioData} 
-                    backtestResults={backtestResults}
+                    // backtestResults={backtestResults} // Removed
                     inputValues={inputValues} 
                   />
                 )}
@@ -185,7 +185,7 @@ const App: React.FC = () => {
                     <Card.Header><Card.Title>Resultados da Projeção</Card.Title></Card.Header>
                     <Card.Content>
                       <p className="text-center text-gray-500 dark:text-gray-400 py-10">
-                        Ajuste os parâmetros e clique em "Simular" para visualizar a projeção e o comparativo histórico.
+                        Ajuste os parâmetros e clique em "Simular" para visualizar a projeção. {/* Updated text */}
                       </p>
                     </Card.Content>
                   </Card>

@@ -62,7 +62,7 @@ const ComprehensiveComparator: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
   const handleFormattedInputChange = useCallback((name: string, value: number | null) => {
-    setInputs(prev => ({ ...prev, [name]: value === null ? 0 : value }));
+    setInputs(prev => ({ ...prev, [name]: value })); // Store null directly
     setResults(null);
   }, []);
 
@@ -74,7 +74,22 @@ const ComprehensiveComparator: React.FC = () => {
   
   const handlePeriodValueChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setInputs(prev => ({ ...prev, [name]: parseInt(value, 10) || 1 }));
+    let processedValue: number | null;
+      if (value.trim() === '') {
+        processedValue = null; // Allow field to be empty visually
+      } else {
+        const parsed = parseInt(value, 10);
+        if (isNaN(parsed)) {
+          // If user types non-numeric, treat as empty (or keep previous value)
+          // Setting to null will clear the input if they type "abc"
+          processedValue = null; 
+        } else {
+          // Ensure value is at least 1 (assuming 1 is the minimum valid period)
+          // The input has min="1", so this logic aligns.
+          processedValue = Math.max(1, parsed); 
+        }
+      }
+    setInputs(prev => ({ ...prev, [name]: processedValue }));
     setResults(null);
   }, []);
 
@@ -84,22 +99,21 @@ const ComprehensiveComparator: React.FC = () => {
     setResults(null);
 
     setTimeout(() => {
-      // Ensure numeric inputs are not null before calculation, default to 0 if they are.
-      const currentInputs: ComprehensiveInputs = {
-          initialInvestment: inputs.initialInvestment ?? 0,
-          monthlyContributions: inputs.monthlyContributions ?? 0,
-          applicationPeriodValue: inputs.applicationPeriodValue, // Already number by its handler
-          applicationPeriodUnit: inputs.applicationPeriodUnit,
-          selicRate: inputs.selicRate ?? 0,
-          cdiRate: inputs.cdiRate ?? 0,
-          ipcaRate: inputs.ipcaRate ?? 0,
-          trRate: inputs.trRate ?? 0,
-          tesouroPrefixadoNominalRate: inputs.tesouroPrefixadoNominalRate ?? 0,
-          tesouroCustodyFeeB3: inputs.tesouroCustodyFeeB3 ?? 0,
-          tesouroIpcaRealRate: inputs.tesouroIpcaRealRate ?? 0,
-          cdbRatePercentageOfCdi: inputs.cdbRatePercentageOfCdi ?? 0,
-          lciLcaRatePercentageOfCdi: inputs.lciLcaRatePercentageOfCdi ?? 0,
-          poupancaRateMonthly: inputs.poupancaRateMonthly ?? 0,
+      const validatedInputs = {
+        initialInvestment: inputs.initialInvestment ?? 0,
+        monthlyContributions: inputs.monthlyContributions ?? 0,
+        applicationPeriodValue: inputs.applicationPeriodValue === null ? 1 : Math.max(1, inputs.applicationPeriodValue),
+        applicationPeriodUnit: inputs.applicationPeriodUnit,
+        selicRate: inputs.selicRate ?? 0,
+        cdiRate: inputs.cdiRate ?? 0,
+        ipcaRate: inputs.ipcaRate ?? 0,
+        trRate: inputs.trRate ?? 0,
+        tesouroPrefixadoNominalRate: inputs.tesouroPrefixadoNominalRate ?? 0,
+        tesouroCustodyFeeB3: inputs.tesouroCustodyFeeB3 ?? 0,
+        tesouroIpcaRealRate: inputs.tesouroIpcaRealRate ?? 0,
+        cdbRatePercentageOfCdi: inputs.cdbRatePercentageOfCdi ?? 0,
+        lciLcaRatePercentageOfCdi: inputs.lciLcaRatePercentageOfCdi ?? 0,
+        poupancaRateMonthly: inputs.poupancaRateMonthly ?? 0,
       };
 
 
@@ -111,14 +125,12 @@ const ComprehensiveComparator: React.FC = () => {
         cdbRatePercentageOfCdi,
         lciLcaRatePercentageOfCdi,
         poupancaRateMonthly
-      } = currentInputs;
+      } = validatedInputs;
 
       const totalMonths = applicationPeriodUnit === 'years' ? applicationPeriodValue * 12 : applicationPeriodValue;
       const totalYears = totalMonths / 12;
       
-      const termDaysForIr = applicationPeriodUnit === 'years' 
-          ? applicationPeriodValue * 365.25 
-          : totalMonths * (365.25 / 12);
+      const termDaysForIr = totalMonths * (365.25 / 12); // Uses totalMonths derived from validated applicationPeriodValue
       
       const calculatedResults: InvestmentCalculationResult[] = [];
 
@@ -257,11 +269,11 @@ const ComprehensiveComparator: React.FC = () => {
       const cdbNetBalance = cdbFinalGrossBalance_PreIR - cdbIrAmount;
 
       calculatedResults.push({
-        name: `CDB ${cdbRatePercentageOfCdi}% CDI`,
-        finalGrossBalance: cdbFinalGrossBalance_PreIR, // No operational fees in this model for CDB
+        name: `CDB ${formatNumberForDisplay(cdbRatePercentageOfCdi, { minimumFractionDigits: 0, maximumFractionDigits: 2})}% CDI`,
+        finalGrossBalance: cdbFinalGrossBalance_PreIR, 
         netBalance: cdbNetBalance,
         totalInvested: cdbTotalInvested,
-        totalInterestEarned: cdbTotalInterestEarned_PreIR, // Interest before IR
+        totalInterestEarned: cdbTotalInterestEarned_PreIR, 
         irRateAppliedPercent: cdbIrRateDecimal * 100,
         irAmount: cdbIrAmount,
         effectiveMonthlyRateUsedPercent: cdbMonthlyGrossRate * 100, 
@@ -274,11 +286,11 @@ const ComprehensiveComparator: React.FC = () => {
       const lciLcaMonthly = annualToMonthlyRate(lciLcaGrossAnnual);
       const lciLcaSim = calculateFVDirectFormula({ pv: initialInvestment, pmt: monthlyContributions, i: lciLcaMonthly, n: totalMonths });
       calculatedResults.push({
-        name: `LCI/LCA ${lciLcaRatePercentageOfCdi}% CDI`,
-        finalGrossBalance: lciLcaSim.finalBalance, // No operational fees, no IR
-        netBalance: lciLcaSim.finalBalance, // Isenta de IR
+        name: `LCI/LCA ${formatNumberForDisplay(lciLcaRatePercentageOfCdi, { minimumFractionDigits: 0, maximumFractionDigits: 2})}% CDI`,
+        finalGrossBalance: lciLcaSim.finalBalance, 
+        netBalance: lciLcaSim.finalBalance, 
         totalInvested: lciLcaSim.totalInvested,
-        totalInterestEarned: lciLcaSim.totalInterestEarned, // Interest is already net
+        totalInterestEarned: lciLcaSim.totalInterestEarned, 
         irRateAppliedPercent: 0,
         irAmount: 0,
         effectiveMonthlyRateUsedPercent: lciLcaMonthly * 100,
@@ -290,13 +302,13 @@ const ComprehensiveComparator: React.FC = () => {
       
       setResults(calculatedResults);
       setIsLoading(false);
-    }, 1500); // 1.5 second delay
+    }, 1500); 
   }, [inputs]); 
 
   const moneyDisplayOptions = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
   const percentDisplayOptions = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
-  const highPrecisionPercentDisplayOptions = { minimumFractionDigits: 2, maximumFractionDigits: 4 }; // For TR, Poupança
-  const integerPercentDisplayOptions = { minimumFractionDigits: 0, maximumFractionDigits: 2 }; // For % of CDI fields
+  const highPrecisionPercentDisplayOptions = { minimumFractionDigits: 2, maximumFractionDigits: 4 }; 
+  const integerPercentDisplayOptions = { minimumFractionDigits: 0, maximumFractionDigits: 2 }; 
   
   const commonInputProps = {
     disabled: isLoading
@@ -336,12 +348,12 @@ const ComprehensiveComparator: React.FC = () => {
             {...commonInputProps}
           />
           <div className="grid grid-cols-2 gap-2 items-end">
-            <Input // Period value is integer
+            <Input 
               label="Período da aplicação"
-              type="number"
+              type="number" 
               id="applicationPeriodValue"
               name="applicationPeriodValue"
-              value={inputs.applicationPeriodValue.toString()}
+              value={inputs.applicationPeriodValue === null ? '' : inputs.applicationPeriodValue.toString()}
               onChange={handlePeriodValueChange}
               min="1"
               {...commonInputProps}
@@ -455,7 +467,7 @@ const ComprehensiveComparator: React.FC = () => {
                       <span className="text-gray-600 dark:text-gray-400" title="Juros totais após taxas operacionais (como custódia B3), antes do Imposto de Renda.">Juros Pós-Taxas Op. (pré-IR):</span>
                       <span className="font-medium text-green-600 dark:text-green-500">{formatCurrency(res.totalInterestEarned)}</span>
                     </div>
-                    {res.operationalFeesPaid !== undefined && res.operationalFeesPaid !== 0 && ( 
+                    {res.operationalFeesPaid !== undefined && res.operationalFeesPaid > 0 && ( 
                         <div className="flex justify-between">
                           <span className="text-gray-600 dark:text-gray-400">Taxas Operacionais Pagas:</span>
                           <span className="font-medium text-orange-600 dark:text-orange-500">(-) {formatCurrency(res.operationalFeesPaid)}</span>

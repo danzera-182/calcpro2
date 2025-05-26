@@ -1,10 +1,10 @@
+
 export interface InputFormData {
   initialInvestment: number;
   contributionValue: number; // Value of the contribution (always monthly)
   rateValue: number; // Value of the rate (always annual percentage)
-  // frequencyType: 'monthly' | 'yearly'; // REMOVED: Dictates if rateValue & contributionValue are monthly or annual
   investmentPeriodYears: number;
-  effectiveAnnualRate: number; // Annual rate, will be same as rateValue as input is always annual
+  // effectiveAnnualRate: number; // REMOVED: Was primarily for backtesting
 }
 
 export interface ProjectionPoint {
@@ -46,46 +46,32 @@ export interface ThemeContextType {
   toggleTheme: () => void;
 }
 
-// Types for Backtesting
-export interface BenchmarkDataPoint {
-  year: number; // Represents the Nth year in the past, e.g., 1 for "1 year ago" - 2023
-  ipcaRate: number; // Annual rate, e.g., 0.05 for 5%
-  ibovespaRate: number;
-  cdiRate: number;
-}
-
-export interface BacktestProjectionPoint {
-  year: number; // Nth year of investment
-  userStrategyValue: number;
-  ipcaValue: number;
-  ibovespaValue: number;
-  cdiValue: number;
-}
-
-export type BacktestDataType = 'user' | 'ipca' | 'ibovespa' | 'cdi';
-
-export interface BacktestResults {
-  data: BacktestProjectionPoint[];
-  period: number; // Actual number of years used in backtest
-}
-
 // Types for Fixed Income Comparator
 export type FixedIncomeInvestmentType = 'pre' | 'post';
 export type TermUnit = 'days' | 'years';
+export type ConversionDirection = 'grossToNet' | 'netToGross';
 
 export interface FixedIncomeResult {
-  netYield: number; // as percentage, e.g. 8.5 for 8.5%
-  irRateApplied: number; // as percentage, e.g. 15 for 15%
-  grossRateUsed: number; // as percentage, e.g. 10 for 10%
-  termDays: number;
+  // Inputs from user at time of calculation
+  conversionDirection: ConversionDirection;
   investmentType: FixedIncomeInvestmentType;
-  originalInputs: {
-    grossAnnualRatePre?: number;
-    cdiPercentagePost?: number;
-    currentCdiRatePost?: number;
-  };
-  equivalentCdiPercentageNet?: number; // as percentage, e.g. 85 for 85% of CDI
+  termDays: number;
+  inputRateDirect: number; // The rate value user typed directly (e.g., 10 for 10% or 100 for 100% CDI)
+  currentCdiRateForPost?: number; // Only if investmentType is 'post'
+
+  // Core calculated values
+  irRateAppliedPercent: number; // e.g. 15 for 15%
+  
+  // The actual gross and net annual rates (%) after all considerations
+  finalGrossAnnualRate: number; 
+  finalNetAnnualRate: number;
+
+  // For post-fixed, the equivalent %CDI for gross and net
+  // These are derived from finalGrossAnnualRate and finalNetAnnualRate
+  equivalentGrossCdiPercentage?: number;
+  equivalentNetCdiPercentage?: number;
 }
+
 
 // Type for App View
 export type AppView = 'selector' | 'compoundInterest' | 'fixedIncomeComparator' | 'comprehensiveComparator';
@@ -95,28 +81,28 @@ export type InvestmentPeriodUnit = 'months' | 'years';
 
 export interface ComprehensiveInputs {
   // Main Simulation Parameters
-  initialInvestment: number;
-  monthlyContributions: number;
-  applicationPeriodValue: number;
+  initialInvestment: number | null;
+  monthlyContributions: number | null;
+  applicationPeriodValue: number | null; // Changed from number to allow null
   applicationPeriodUnit: InvestmentPeriodUnit;
 
   // Economic Indicators
-  selicRate: number;          // Selic efetiva (a.a.) %
-  cdiRate: number;            // CDI (a.a.) %
-  ipcaRate: number;           // IPCA (a.a.) %
-  trRate: number;             // TR (a.m.) %
+  selicRate: number | null;          // Selic efetiva (a.a.) %
+  cdiRate: number | null;            // CDI (a.a.) %
+  ipcaRate: number | null;           // IPCA (a.a.) %
+  trRate: number | null;             // TR (a.m.) %
 
   // Tesouro Prefixado
-  tesouroPrefixadoNominalRate: number; // Juro nominal do Tesouro Prefixado (a.a.) %
-  tesouroCustodyFeeB3: number;        // Taxa de custódia da B3 no Tesouro Direto (a.a.) %
+  tesouroPrefixadoNominalRate: number | null; // Juro nominal do Tesouro Prefixado (a.a.) %
+  tesouroCustodyFeeB3: number | null;        // Taxa de custódia da B3 no Tesouro Direto (a.a.) %
 
   // Tesouro IPCA+
-  tesouroIpcaRealRate: number;        // Juro real do Tesouro IPCA+ (a.a.) %
+  tesouroIpcaRealRate: number | null;        // Juro real do Tesouro IPCA+ (a.a.) %
   
   // Other Investment Types
-  cdbRatePercentageOfCdi: number;      // Rentabilidade do CDB (% do CDI) - Input is the percentage value
-  lciLcaRatePercentageOfCdi: number;   // Rentabilidade da LCI/LCA (% do CDI) - Input is the percentage value
-  poupancaRateMonthly: number;         // Rentabilidade da Poupança (a.m.) %
+  cdbRatePercentageOfCdi: number | null;      // Rentabilidade do CDB (% do CDI) - Input is the percentage value
+  lciLcaRatePercentageOfCdi: number | null;   // Rentabilidade da LCI/LCA (% do CDI) - Input is the percentage value
+  poupancaRateMonthly: number | null;         // Rentabilidade da Poupança (a.m.) %
 }
 
 export interface InvestmentCalculationResult {

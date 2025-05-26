@@ -1,13 +1,13 @@
 
 import React, { useState } from 'react';
-import { ScenarioData, BacktestResults, InputFormData, ProjectionPoint } from '../types';
+import { ScenarioData, InputFormData, ProjectionPoint } from '../types'; // Removed BacktestResults
 import LineChartComponent from './LineChartComponent';
 import DataTable from './DataTable';
 import MonthlyDataTable from './MonthlyDataTable';
-import BacktestChartComponent from './BacktestChartComponent';
+// import BacktestChartComponent from './BacktestChartComponent'; // Removed
 import { Card } from './ui/Card';
 import Button from './ui/Button';
-import { MAX_HISTORICAL_DATA_YEARS } from '../utils/mockBenchmarkData'; 
+// import { MAX_HISTORICAL_DATA_YEARS } from '../utils/mockBenchmarkData'; // Removed
 import { formatCurrency, formatNumber } from '../utils/formatters';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -15,13 +15,13 @@ import autoTable from 'jspdf-autotable';
 
 interface ResultsDisplayProps {
   scenarioData: ScenarioData;
-  backtestResults: BacktestResults | null;
+  // backtestResults: BacktestResults | null; // Removed
   inputValues: InputFormData;
 }
 
 type ProjectionView = 'yearly' | 'monthly';
 
-const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ scenarioData, backtestResults, inputValues }) => {
+const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ scenarioData, inputValues }) => {
   const [projectionView, setProjectionView] = useState<ProjectionView>('yearly');
 
   const handleExportPDF = () => {
@@ -71,16 +71,16 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ scenarioData, backtestR
     finalY += 4; // Extra space before summary
 
     // Summary of Results
-    const lastProjectionPoint = scenarioData.data[scenarioData.data.length - 1];
-    if (lastProjectionPoint) {
+    const lastProjectionPointPdf = scenarioData.data[scenarioData.data.length - 1];
+    if (lastProjectionPointPdf) {
         doc.setFontSize(12);
         doc.text("Resumo da Projeção Final:", 14, finalY);
         finalY += 7;
         doc.setFontSize(10);
         const summary = [
-            `Valor Total Final Investido: ${formatCurrency(lastProjectionPoint.cumulativeContributions)}`, // Includes initial
-            `Total de Juros Ganhos: ${formatCurrency(lastProjectionPoint.cumulativeInterest)}`,
-            `Valor Final Acumulado: ${formatCurrency(lastProjectionPoint.finalBalance)}`,
+            `Valor Total Final Investido: ${formatCurrency(lastProjectionPointPdf.cumulativeContributions)}`, // Includes initial
+            `Total de Juros Ganhos: ${formatCurrency(lastProjectionPointPdf.cumulativeInterest)}`,
+            `Valor Final Acumulado: ${formatCurrency(lastProjectionPointPdf.finalBalance)}`,
         ];
         summary.forEach(item => {
             doc.text(item, 14, finalY);
@@ -170,7 +170,7 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ scenarioData, backtestR
 
   return (
     <>
-      {/* Summary Card - NEW */}
+      {/* Summary Card */}
       {lastProjectionPoint && (
         <Card className="mb-6 sm:mb-8">
           <Card.Header>
@@ -285,26 +285,7 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ scenarioData, backtestR
         </Card.Content>
       </Card>
 
-      {backtestResults && backtestResults.data.length > 0 && (
-        <Card>
-          <Card.Header>
-            <Card.Title>Comparativo Histórico (Backtest - Últimos {backtestResults.period} Anos)</Card.Title>
-          </Card.Header>
-          <Card.Content className="space-y-6">
-            <p className="text-xs text-gray-600 dark:text-gray-400">
-              Este gráfico compara o desempenho histórico simulado da sua estratégia (valor inicial + aportes) contra os benchmarks IPCA, Ibovespa e CDI, utilizando dados <strong>históricos reais (estáticos)</strong> dos últimos {backtestResults.period} anos (limitado a {MAX_HISTORICAL_DATA_YEARS} anos de dados disponíveis).
-              A linha "Sua Estratégia (Taxa Fixa)" aplica a taxa de juros anual efetiva ({inputValues.effectiveAnnualRate.toFixed(2)}% a.a.) que você definiu para a projeção futura, de forma retroativa.
-            </p>
-            <div>
-              <h3 className="text-lg font-semibold mb-4 text-gray-800 dark:text-blue-400">Desempenho Histórico Simulado vs. Benchmarks</h3>
-              <BacktestChartComponent data={backtestResults.data} period={backtestResults.period} />
-            </div>
-             <p className="text-xs text-center font-semibold text-red-600 dark:text-red-400 pt-2">
-              Atenção: Rentabilidade passada não é garantia de rentabilidade futura. Dados históricos são para fins ilustrativos e não se atualizam automaticamente. Consulte um profissional financeiro.
-            </p>
-          </Card.Content>
-        </Card>
-      )}
+      {/* Backtest section removed */}
     </>
   );
 };
