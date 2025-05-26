@@ -29,17 +29,17 @@ export const DEFAULT_COMPREHENSIVE_INPUTS: ComprehensiveInputs = {
   applicationPeriodValue: 1,
   applicationPeriodUnit: 'years',
 
-  selicRate: 14.65,
-  cdiRate: 14.65,
-  ipcaRate: 4.91,
-  trRate: 0.1717,
+  selicRate: 10.50, // Updated to a more current typical value
+  cdiRate: 10.40,  // Updated to a more current typical value (slightly below Selic)
+  ipcaRate: 3.75,  // Updated to a more current typical value
+  trRate: 0.05,    // Fallback TR value, as it will now be auto-fetched from SGS 226.
 
-  tesouroPrefixadoNominalRate: 14.00,
+  tesouroPrefixadoNominalRate: 11.00,
   tesouroCustodyFeeB3: 0.20,
 
-  tesouroIpcaRealRate: 6.50,
+  tesouroIpcaRealRate: 5.50,
 
   cdbRatePercentageOfCdi: 100,
   lciLcaRatePercentageOfCdi: 85,
-  poupancaRateMonthly: 0.6726,
+  // poupancaRateMonthly: 0.6726, // REMOVED - Será calculado
 };

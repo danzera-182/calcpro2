@@ -102,7 +102,7 @@ export interface ComprehensiveInputs {
   // Other Investment Types
   cdbRatePercentageOfCdi: number | null;      // Rentabilidade do CDB (% do CDI) - Input is the percentage value
   lciLcaRatePercentageOfCdi: number | null;   // Rentabilidade da LCI/LCA (% do CDI) - Input is the percentage value
-  poupancaRateMonthly: number | null;         // Rentabilidade da Poupança (a.m.) %
+  // poupancaRateMonthly: number | null;      // REMOVED: Rentabilidade da Poupança (a.m.) % - Será calculada
 }
 
 export interface InvestmentCalculationResult {
@@ -116,4 +116,10 @@ export interface InvestmentCalculationResult {
   effectiveAnnualRateUsedPercent?: number; // Informational: effective annual rate used in calculation (after op. fees, before IR)
   effectiveMonthlyRateUsedPercent?: number; // Informational: effective monthly rate used in calculation (after op. fees, before IR)
   operationalFeesPaid?: number; // Total operational fees (custody, admin) estimated over the period
+}
+
+// Type for USD/BRL Exchange Rate
+export interface UsdBrlRateInfo {
+  rate: number;      // Exchange rate (e.g., PTAX Venda)
+  dateTime: string;  // ISO string or formatted string of the quotation date/time
 }

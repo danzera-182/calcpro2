@@ -1,6 +1,7 @@
 
-import React, { useState, useCallback } from 'react';
-import { InputFormData, ScenarioData, AppView } from './types';
+
+import React, { useState, useCallback, useEffect } from 'react';
+import { InputFormData, ScenarioData, AppView, UsdBrlRateInfo } from './types';
 import { DEFAULT_INPUT_VALUES } from './constants';
 import { calculateProjection } from './utils/calculations';
 // import { calculateBacktestProjections } from './utils/backtestCalculations'; // Removed
@@ -11,6 +12,8 @@ import { Card } from './components/ui/Card';
 import Button from './components/ui/Button';
 import FixedIncomeComparator from './components/FixedIncomeComparator';
 import ComprehensiveComparator from './components/ComprehensiveComparator'; // Import new component
+import ExchangeRateDisplay from './components/ExchangeRateDisplay'; // Import new component
+import { fetchLatestUsdBrlRate } from './utils/economicIndicatorsAPI'; // Import new fetcher
 
 const App: React.FC = () => {
   const [inputValues, setInputValues] = useState<InputFormData>(DEFAULT_INPUT_VALUES);
@@ -18,6 +21,10 @@ const App: React.FC = () => {
   // const [backtestResults, setBacktestResults] = useState<BacktestResults | null>(null); // Removed
   const [activeView, setActiveView] = useState<AppView>('selector');
   const [isLoading, setIsLoading] = useState<boolean>(false); // Added isLoading state
+
+  const [exchangeRateInfo, setExchangeRateInfo] = useState<UsdBrlRateInfo | null>(null);
+  const [isLoadingExchangeRate, setIsLoadingExchangeRate] = useState<boolean>(false);
+  const [exchangeRateError, setExchangeRateError] = useState<string | null>(null);
 
   const handleInputChange = useCallback((newInputValues: Partial<InputFormData>) => {
     setInputValues(prev => {
@@ -74,14 +81,37 @@ const App: React.FC = () => {
 
   }, [inputValues]);
 
+  useEffect(() => {
+    if (activeView === 'selector' && !exchangeRateInfo && !isLoadingExchangeRate && !exchangeRateError) {
+      const loadExchangeRate = async () => {
+        setIsLoadingExchangeRate(true);
+        setExchangeRateError(null);
+        try {
+          const rateData = await fetchLatestUsdBrlRate();
+          if (rateData) {
+            setExchangeRateInfo(rateData);
+          } else {
+            setExchangeRateError("Cotação do dólar não disponível no momento.");
+          }
+        } catch (e) {
+          console.error("Error fetching USD/BRL rate:", e);
+          setExchangeRateError("Falha ao buscar cotação do dólar.");
+        } finally {
+          setIsLoadingExchangeRate(false);
+        }
+      };
+      loadExchangeRate();
+    }
+  }, [activeView, exchangeRateInfo, isLoadingExchangeRate, exchangeRateError]);
+
   const getSubtitle = () => {
     switch (activeView) {
       case 'compoundInterest':
-        return "Simule o futuro dos seus investimentos com projeções detalhadas."; // Updated subtitle
+        return "Simule o futuro dos seus investimentos com projeções detalhadas.";
       case 'fixedIncomeComparator':
-        return "Analise a equivalência de rentabilidade entre investimentos de renda fixa tributados e isentos.";
+        return "Analise a equivalência de rentabilidade entre investimentos de renda fixa tributados e isentos."; // Subtitle for 'Simulador Isento vs. Tributado'
       case 'comprehensiveComparator':
-        return "Compare diferentes aplicações financeiras com parâmetros detalhados.";
+        return "Compare diferentes aplicações de renda fixa com parâmetros detalhados."; // Subtitle for 'Comparador Investimentos Renda-Fixa'
       case 'selector':
       default:
         return "Suas ferramentas financeiras em um só lugar. Escolha uma opção abaixo para começar.";
@@ -92,62 +122,69 @@ const App: React.FC = () => {
     switch (activeView) {
       case 'selector':
         return (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 mt-8">
-            <Card 
-              className="cursor-pointer hover:shadow-2xl transition-shadow duration-200 ease-in-out transform hover:-translate-y-1"
-              onClick={() => setActiveView('compoundInterest')}
-            >
-              <Card.Header>
-                <Card.Title>Juros Compostos & Projeção</Card.Title>
-              </Card.Header>
-              <Card.Content>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Simule o crescimento dos seus investimentos com aportes mensais e taxa anual, visualize projeções detalhadas. {/* Updated description */}
-                </p>
-                <Button variant="primary" className="mt-4 w-full">Acessar Calculadora</Button>
-              </Card.Content>
-            </Card>
-            <Card 
-              className="cursor-pointer hover:shadow-2xl transition-shadow duration-200 ease-in-out transform hover:-translate-y-1"
-              onClick={() => setActiveView('fixedIncomeComparator')}
-            >
-              <Card.Header>
-                <Card.Title>Comparador de Renda Fixa</Card.Title>
-              </Card.Header>
-              <Card.Content>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Descubra a rentabilidade líquida de investimentos pré-fixados ou pós-fixados (% do CDI) após o Imposto de Renda e compare com aplicações isentas.
-                </p>
-                 <Button variant="primary" className="mt-4 w-full">Acessar Comparador</Button>
-              </Card.Content>
-            </Card>
-            <Card 
-              className="cursor-pointer hover:shadow-2xl transition-shadow duration-200 ease-in-out transform hover:-translate-y-1 md:col-span-2 lg:col-span-1" // Span across on medium, normal on large
-              onClick={() => setActiveView('comprehensiveComparator')}
-            >
-              <Card.Header>
-                <Card.Title>Comparador Completo de Aplicações</Card.Title>
-              </Card.Header>
-              <Card.Content>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Analise e compare diversas opções de investimento com parâmetros detalhados para identificar qual rende mais.
-                </p>
-                 <Button variant="primary" className="mt-4 w-full">Acessar Comparador Completo</Button>
-              </Card.Content>
-            </Card>
-          </div>
+          <>
+            <ExchangeRateDisplay
+              rateInfo={exchangeRateInfo}
+              isLoading={isLoadingExchangeRate}
+              error={exchangeRateError}
+            />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 mt-4"> {/* mt-4 instead of mt-8 to give space to exchangeratedisplay */}
+              <Card 
+                className="cursor-pointer hover:shadow-2xl transition-shadow duration-200 ease-in-out transform hover:-translate-y-1"
+                onClick={() => setActiveView('compoundInterest')}
+              >
+                <Card.Header>
+                  <Card.Title>📈 Projeção de Patrimônio</Card.Title>
+                </Card.Header>
+                <Card.Content>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Simule o crescimento dos seus investimentos com aportes mensais e taxa anual, visualize projeções detalhadas.
+                  </p>
+                  <Button variant="primary" className="mt-4 w-full">Acessar Calculadora</Button>
+                </Card.Content>
+              </Card>
+              <Card 
+                className="cursor-pointer hover:shadow-2xl transition-shadow duration-200 ease-in-out transform hover:-translate-y-1"
+                onClick={() => setActiveView('fixedIncomeComparator')}
+              >
+                <Card.Header>
+                  <Card.Title>⚖️ Simulador Isento vs. Tributado</Card.Title>
+                </Card.Header>
+                <Card.Content>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Descubra a rentabilidade líquida de investimentos pré-fixados ou pós-fixados (% do CDI) após o Imposto de Renda e compare com aplicações isentas.
+                  </p>
+                  <Button variant="primary" className="mt-4 w-full">Acessar Simulador</Button>
+                </Card.Content>
+              </Card>
+              <Card 
+                className="cursor-pointer hover:shadow-2xl transition-shadow duration-200 ease-in-out transform hover:-translate-y-1 md:col-span-2 lg:col-span-1" // Span across on medium, normal on large
+                onClick={() => setActiveView('comprehensiveComparator')}
+              >
+                <Card.Header>
+                  <Card.Title>📊 Comparador Investimentos Renda-Fixa</Card.Title>
+                </Card.Header>
+                <Card.Content>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Analise e compare diversas opções de investimento de renda fixa com parâmetros detalhados para identificar qual rende mais.
+                  </p>
+                  <Button variant="primary" className="mt-4 w-full">Acessar Comparador</Button>
+                </Card.Content>
+              </Card>
+            </div>
+          </>
         );
       case 'compoundInterest':
         return (
           <>
-            <Button onClick={() => setActiveView('selector')} variant="ghost" size="sm" className="mb-6 text-sm dark:text-blue-400">
+            <Button onClick={() => setActiveView('selector')} variant="secondary" size="md" className="mb-6">
               &larr; Voltar para seleção de ferramentas
             </Button>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
               <div className="lg:col-span-1 space-y-6 sm:space-y-8">
                 <Card>
                   <Card.Header>
-                    <Card.Title>Juros Compostos & Projeção</Card.Title>
+                    <Card.Title>Projeção de Patrimônio</Card.Title>
                   </Card.Header>
                   <Card.Content>
                     <InputForm
@@ -185,7 +222,7 @@ const App: React.FC = () => {
                     <Card.Header><Card.Title>Resultados da Projeção</Card.Title></Card.Header>
                     <Card.Content>
                       <p className="text-center text-gray-500 dark:text-gray-400 py-10">
-                        Ajuste os parâmetros e clique em "Simular" para visualizar a projeção. {/* Updated text */}
+                        Ajuste os parâmetros e clique em "Simular" para visualizar a projeção.
                       </p>
                     </Card.Content>
                   </Card>
@@ -197,7 +234,7 @@ const App: React.FC = () => {
       case 'fixedIncomeComparator':
         return (
           <>
-            <Button onClick={() => setActiveView('selector')} variant="ghost" size="sm" className="mb-6 text-sm dark:text-blue-400">
+            <Button onClick={() => setActiveView('selector')} variant="secondary" size="md" className="mb-6">
               &larr; Voltar para seleção de ferramentas
             </Button>
             <div className="max-w-2xl mx-auto">
@@ -208,7 +245,7 @@ const App: React.FC = () => {
       case 'comprehensiveComparator':
         return (
           <>
-            <Button onClick={() => setActiveView('selector')} variant="ghost" size="sm" className="mb-6 text-sm dark:text-blue-400">
+            <Button onClick={() => setActiveView('selector')} variant="secondary" size="md" className="mb-6">
               &larr; Voltar para seleção de ferramentas
             </Button>
             <ComprehensiveComparator /> 
