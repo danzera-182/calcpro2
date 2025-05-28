@@ -1,9 +1,20 @@
 
 import React, { ReactNode } from 'react';
 
-interface CardSubComponentProps {
+// Define specific props interfaces for each sub-component
+interface CardHeaderProps extends React.HTMLAttributes<HTMLDivElement> {
   children: ReactNode;
-  className?: string;
+  // className is part of HTMLAttributes
+}
+
+interface CardTitleProps extends React.HTMLAttributes<HTMLHeadingElement> {
+  children: ReactNode;
+  // className is part of HTMLAttributes
+}
+
+interface CardContentProps extends React.HTMLAttributes<HTMLDivElement> {
+  children: ReactNode;
+  // className is part of HTMLAttributes
 }
 
 interface CardRootProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -28,16 +39,16 @@ const CardRoot: React.FC<CardRootProps> = ({ children, className, ...rest }) => 
   );
 };
 
-const CardHeader: React.FC<CardSubComponentProps> = ({ children, className = '' }) => {
-  return <div className={`p-4 sm:p-5 border-b border-slate-900/10 dark:border-slate-50/10 ${className}`}>{children}</div>;
+const CardHeader: React.FC<CardHeaderProps> = ({ children, className = '', ...rest }) => {
+  return <div className={`p-4 sm:p-5 border-b border-slate-900/10 dark:border-slate-50/10 ${className}`} {...rest}>{children}</div>;
 };
 
-const CardTitle: React.FC<CardSubComponentProps> = ({ children, className = '' }) => {
-  return <h2 className={`text-lg sm:text-xl font-semibold text-gray-900 dark:text-white ${className}`}>{children}</h2>;
+const CardTitle: React.FC<CardTitleProps> = ({ children, className = '', ...rest }) => {
+  return <h2 className={`text-lg sm:text-xl font-semibold text-gray-900 dark:text-white ${className}`} {...rest}>{children}</h2>;
 };
 
-const CardContent: React.FC<CardSubComponentProps> = ({ children, className = '' }) => {
-  return <div className={`p-4 sm:p-5 ${className}`}>{children}</div>;
+const CardContent: React.FC<CardContentProps> = ({ children, className = '', ...rest }) => {
+  return <div className={`p-4 sm:p-5 ${className}`} {...rest}>{children}</div>;
 };
 
 export const Card = Object.assign(CardRoot, {

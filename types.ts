@@ -1,4 +1,3 @@
-
 export interface InputFormData {
   initialInvestment: number;
   contributionValue: number; // Value of the contribution (always monthly)
@@ -74,7 +73,7 @@ export interface FixedIncomeResult {
 
 
 // Type for App View
-export type AppView = 'selector' | 'compoundInterest' | 'fixedIncomeComparator' | 'comprehensiveComparator';
+export type AppView = 'selector' | 'compoundInterest' | 'fixedIncomeComparator' | 'comprehensiveComparator' | 'macroEconomicPanel';
 
 // Types for Comprehensive Comparator
 export type InvestmentPeriodUnit = 'months' | 'years';
@@ -123,3 +122,83 @@ export interface UsdBrlRateInfo {
   rate: number;      // Exchange rate (e.g., PTAX Venda)
   dateTime: string;  // ISO string or formatted string of the quotation date/time
 }
+
+// Types for Fund Analyzer - Mantida para não quebrar importações, mas não será foco.
+export interface FundInfo {
+  id: string; // CNPJ can serve as ID
+  cnpj: string; // Raw CNPJ: "00111222000133"
+  name: string;
+  administratorName?: string;
+  managerName?: string;
+  fundClass?: string; // e.g., "Fundo de Ações", "Fundo de Renda Fixa", "Fundo Multimercado"
+  netAssetValue?: number; // VL_PATRIM_LIQ
+  quotaValue?: number; // VL_QUOTA
+  reportDate?: string; // DT_COMPTC (e.g., "2023-10-20")
+  adminFee?: number; // TAXA_ADM (e.g., 2 for 2%)
+  performanceFee?: string; // TAXA_PERFM (e.g., "20% sobre o que exceder 100% do CDI")
+  numQuotaholders?: number; // NR_COTST
+  targetAudience?: string; // PBLICO_ALVO
+  initialInvestment?: number; // APLIC_MIN
+}
+
+// Types for MacroEconomicPanel Indicator Modal
+export interface IndicatorModalData {
+  title: string;
+  sgsCode?: string | number; // SGS Code or special identifier like 'PTAX'
+  description: string;
+  currentValue: string | number | null | undefined;
+  valueSuffix?: string;
+  referenceText?: string;
+  sourceText?: string;
+  isUSD?: boolean; // For PTAX or USD denominated values
+  isPercentage?: boolean; // If the value is a percentage
+  isBillions?: boolean; // If value is in billions (e.g., Reserves)
+  valuePrecision?: number; // Default precision for display
+  historicalSeriesName?: string; // Name for the chart series
+  historicalYAxisLabel?: string; // Label for Y-axis in historical chart
+  isDailyData?: boolean; // Hint for chart date formatting for daily series like CDI
+}
+
+export interface HistoricalDataPoint {
+  date: string; // Store as YYYY-MM-DD for easier sorting and parsing
+  value: number;
+}
+
+// utils/economicIndicatorsAPI.ts related types
+export interface FetchedEconomicIndicators {
+  selicRate?: number;
+  selicReferenceDate?: string; 
+  cdiRate?: number;
+  cdiReferenceDate?: string; 
+  ipcaRate?: number;
+  ipcaSourceType?: 'projection' | 'accumulated12m';
+  ipcaReferenceDate?: string;
+  trRate?: number;
+  trReferenceDate?: string; 
+  igpmRate?: number; 
+  igpmReferenceDate?: string; 
+  
+  netPublicDebtToGdpSGS4513?: number; // SGS 4513 (Dívida Líquida do Setor Público - % PIB)
+  netPublicDebtToGdpSGS4513ReferenceDate?: string; // MM/YYYY
+  
+  ibcBrRate?: number; 
+  ibcBrReferenceDate?: string; 
+  internationalReserves?: number; 
+  internationalReservesReferenceDate?: string; 
+  
+  goldReservesSGS3552MillionsUSD?: number; // SGS 3552 (Reservas internacionais - Ouro - US$ milhões)
+  goldReservesSGS3552MillionsUSDReferenceDate?: string; // MM/YYYY
+  
+  gdpProjection?: number;
+  gdpProjectionSourceType?: 'projection_focus' | 'accumulated12m_sgs4380';
+  gdpProjectionReferenceDate?: string;
+  
+  grossGeneralGovernmentDebtToGdp?: number; // SGS 13762
+  grossGeneralGovernmentDebtToGdpReferenceDate?: string; // MM/YYYY
+
+  lastUpdated?: string;
+  errors?: string[];
+}
+
+
+export type DateRangePreset = '1M' | '6M' | '1Y' | '5Y' | 'MAX';
