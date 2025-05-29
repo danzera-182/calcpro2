@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { UsdBrlRateInfo } from '../types';
+import { UsdBrlRateInfo } from '../types'; // Changed from BtcPriceInfo
 import { formatCurrency, formatNumberForDisplay } from '../utils/formatters';
 
 interface ExchangeRateDisplayProps {
@@ -61,7 +61,7 @@ const ExchangeRateDisplay: React.FC<ExchangeRateDisplayProps> = ({ rateInfo, isL
   }
 
   return (
-    <div className="mb-6 p-3 bg-gray-100 dark:bg-slate-800/70 rounded-lg shadow-subtle text-center">
+    <div className="p-3 bg-gray-100 dark:bg-slate-800/70 rounded-lg shadow-subtle text-center">
       {content}
     </div>
   );

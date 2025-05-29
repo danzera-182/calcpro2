@@ -23,41 +23,47 @@ const IndicatorCard: React.FC<IndicatorCardProps> = ({
   const { 
     title, 
     currentValue, 
-    valueSuffix = '', 
+    valueSuffix = '', // Default unit like % a.a.
     referenceText, 
     sourceText, 
     valuePrecision = 2,
-    isBillions,
-    isUSD,
+    // isBillions, // Replaced by displayDivisor and displaySuffixOverride
+    // isUSD, // isUSD is still in IndicatorModalData for chart tooltip, but card display is controlled by prefix/suffix
+    displayDivisor,
+    displayPrefix,
+    displaySuffixOverride,
   } = indicatorData;
 
   let displayValueStr: string;
-  let displaySuffix: string = valueSuffix;
+  let finalDisplayPrefix = displayPrefix || '';
+  let finalDisplaySuffix = displaySuffixOverride !== undefined ? displaySuffixOverride : valueSuffix;
 
   if (isLoading) {
     displayValueStr = 'Carregando...';
-    displaySuffix = '';
+    finalDisplayPrefix = '';
+    finalDisplaySuffix = '';
   } else if (error) { 
     displayValueStr = error; 
-    displaySuffix = '';
+    finalDisplayPrefix = '';
+    finalDisplaySuffix = '';
   } else if (currentValue === null || currentValue === undefined || (typeof currentValue === 'string' && currentValue.trim() === '')) {
     displayValueStr = 'N/D';
-    displaySuffix = '';
+    finalDisplayPrefix = '';
+    finalDisplaySuffix = '';
   } else {
-    if (typeof currentValue === 'number') {
-      if (isBillions) {
-        displayValueStr = formatNumberForDisplay(currentValue / 1000, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        displaySuffix = isUSD ? ' bi USD' : ' bi'; 
-      } else {
-        displayValueStr = formatNumberForDisplay(currentValue, { minimumFractionDigits: valuePrecision, maximumFractionDigits: valuePrecision });
-      }
-    } else { 
-      const parsedNum = parseFloat(currentValue.replace(',', '.'));
-      if (!isNaN(parsedNum)) {
-        displayValueStr = formatNumberForDisplay(parsedNum, { minimumFractionDigits: valuePrecision, maximumFractionDigits: valuePrecision });
-      } else {
-        displayValueStr = currentValue; 
-      }
+    let numToFormat = typeof currentValue === 'number' ? currentValue : parseFloat(String(currentValue).replace(',', '.'));
+    if (!isNaN(numToFormat)) {
+        if (displayDivisor && displayDivisor !== 0) {
+            numToFormat /= displayDivisor;
+        }
+        displayValueStr = formatNumberForDisplay(numToFormat, { 
+            minimumFractionDigits: valuePrecision, 
+            maximumFractionDigits: valuePrecision 
+        });
+    } else {
+        displayValueStr = String(currentValue); // Fallback for non-numeric string
+        finalDisplayPrefix = ''; 
+        finalDisplaySuffix = '';
     }
   }
 
@@ -88,7 +94,7 @@ const IndicatorCard: React.FC<IndicatorCardProps> = ({
             : error ? 'text-red-500 dark:text-red-400' 
             : 'text-gray-900 dark:text-white'
         }`}>
-          {displayValueStr}{displaySuffix}
+          {finalDisplayPrefix}{displayValueStr}{finalDisplaySuffix}
         </p>
         {referenceText && !isLoading && !error && (
           <p className="text-xs text-gray-500 dark:text-gray-400">{referenceText}</p>

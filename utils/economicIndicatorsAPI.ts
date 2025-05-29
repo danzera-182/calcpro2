@@ -1,6 +1,5 @@
-
 // utils/economicIndicatorsAPI.ts
-import { UsdBrlRateInfo, HistoricalDataPoint } from '../types'; // Import UsdBrlRateInfo type
+import { HistoricalDataPoint, DynamicHistoricalAverage, BtcPriceInfo, UsdBrlRateInfo } from '../types'; 
 
 export interface FetchedEconomicIndicators {
   selicRate?: number;
@@ -32,6 +31,9 @@ export interface FetchedEconomicIndicators {
 
   grossGeneralGovernmentDebtToGdp?: number; // SGS 13762
   grossGeneralGovernmentDebtToGdpReferenceDate?: string; // MM/YYYY
+
+  m2BalanceSGS27842?: number; // M2 Balance (Milhares de R$) - SGS 27842
+  m2BalanceSGS27842ReferenceDate?: string; // MM/YYYY
   
   lastUpdated?: string;
   errors?: string[];
@@ -293,8 +295,27 @@ export async function fetchEconomicIndicators(): Promise<FetchedEconomicIndicato
     errors.push('Reservas Internacionais - Ouro');
     console.error("Error fetching Gold Reserves (SGS 3552):", e.message, e);
   }
+  
+  // 11. M2 (Base Monetária - SGS 27842 - Milhares de R$)
+  try {
+    const m2Response = await fetch('https://api.bcb.gov.br/dados/serie/bcdata.sgs.27842/dados/ultimos/1?formato=json');
+    if (!m2Response.ok) throw new Error(`BCB API M2 (SGS 27842) request failed with status ${m2Response.status}`);
+    const m2Data = await m2Response.json();
+    if (m2Data && m2Data.length > 0 && m2Data[0].valor !== undefined) {
+      const m2Value = parseFloat(m2Data[0].valor);
+      if (isNaN(m2Value)) throw new Error('Invalid M2 (SGS 27842) value (NaN)');
+      indicators.m2BalanceSGS27842 = m2Value; // Store value in "Milhares de R$"
+      indicators.m2BalanceSGS27842ReferenceDate = formatSgsDateToMonthYear(m2Data[0].data);
+    } else {
+      throw new Error('Invalid M2 (SGS 27842) data format');
+    }
+  } catch (e: any) {
+    errors.push('M2 (Base Monetária)');
+    console.error("Error fetching M2 (SGS 27842):", e.message, e);
+  }
 
-  // 11. PIB (Projeção Focus - Olinda API)
+
+  // 12. PIB (Projeção Focus - Olinda API)
   let gdpFetchedSuccessfully = false;
   const gdpProjectionApiUrl = (year: number) => `https://olinda.bcb.gov.br/olinda/servico/Focus/versao/v1/odata/ExpectativaMercadoAnual?$format=json&$top=1&$filter=Indicador%20eq%20'PIB%20Total'%20and%20DataReferencia%20eq%20'${year}'&$select=Mediana,Data`;
   
@@ -363,60 +384,70 @@ export async function fetchEconomicIndicators(): Promise<FetchedEconomicIndicato
   return indicators;
 }
 
+/**
+ * Fetches the latest Bitcoin price from CoinGecko API.
+ */
+export async function fetchLatestBitcoinPrice(): Promise<BtcPriceInfo | null> {
+  const apiUrl = 'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=brl,usd&include_last_updated_at=true';
+  try {
+    const response = await fetch(apiUrl);
+    if (!response.ok) {
+      throw new Error(`CoinGecko API request failed with status ${response.status}`);
+    }
+    const data = await response.json();
+    if (data.bitcoin && data.bitcoin.brl && data.bitcoin.usd && data.bitcoin.last_updated_at) {
+      return {
+        brl: data.bitcoin.brl,
+        usd: data.bitcoin.usd,
+        lastUpdatedAt: data.bitcoin.last_updated_at,
+      };
+    } else {
+      throw new Error('Invalid Bitcoin price data format from CoinGecko');
+    }
+  } catch (e: any) {
+    console.error("Error fetching Bitcoin price from CoinGecko:", e.message, e);
+    return null;
+  }
+}
 
 /**
- * Fetches the latest USD/BRL exchange rate from BCB PTAX API.
+ * Fetches the latest USD/BRL PTAX Venda rate from BCB SGS API.
+ * SGS 10813: Taxa de câmbio - Livre - Dólar americano (venda) - diário
  */
 export async function fetchLatestUsdBrlRate(): Promise<UsdBrlRateInfo | null> {
-  const today = new Date();
-  let attempts = 0;
-  const maxAttempts = 7; // Try up to 7 days back
-
-  while (attempts < maxAttempts) {
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const day = String(today.getDate()).padStart(2, '0');
-    const formattedDate = `${month}-${day}-${year}`;
-    
-    const apiUrl = `https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoDolarDia(dataCotacao=@dataCotacao)?@dataCotacao='${formattedDate}'&$top=1&$format=json&$select=cotacaoVenda,dataHoraCotacao`;
-
-    try {
-      const response = await fetch(apiUrl);
-      if (!response.ok) {
-        if (response.status === 404) { 
-            today.setDate(today.getDate() - 1);
-            attempts++;
-            continue;
-        }
-        throw new Error(`BCB PTAX API request failed with status ${response.status} for date ${formattedDate}`);
-      }
-      const data = await response.json();
-      
-      if (data.value && data.value.length > 0) {
-        const rateInfo = data.value[0];
-        const rate = parseFloat(rateInfo.cotacaoVenda);
-        if (isNaN(rate)) {
-             throw new Error(`Invalid PTAX rate value (NaN) for date ${formattedDate}`);
-        }
-        return {
-          rate: rate,
-          dateTime: rateInfo.dataHoraCotacao,
-        };
-      } else {
-        today.setDate(today.getDate() - 1);
-        attempts++;
-      }
-    } catch (e: any) {
-      console.error(`Error fetching PTAX for ${formattedDate}:`, e.message, e);
-      if (!e.message?.includes("status 404") && !e.message?.toLowerCase().includes("failed to fetch")) { 
-          return null; 
-      }
-      today.setDate(today.getDate() - 1);
-      attempts++;
+  const sgsCodePtaxVenda = 10813;
+  const apiUrl = `https://api.bcb.gov.br/dados/serie/bcdata.sgs.${sgsCodePtaxVenda}/dados/ultimos/1?formato=json`;
+  try {
+    const response = await fetch(apiUrl);
+    if (!response.ok) {
+      throw new Error(`BCB API PTAX Venda (SGS ${sgsCodePtaxVenda}) request failed with status ${response.status}`);
     }
+    const data = await response.json();
+    if (data && data.length > 0 && data[0].valor !== undefined && data[0].data !== undefined) {
+      const rate = parseFloat(data[0].valor);
+      if (isNaN(rate)) {
+        throw new Error('Invalid PTAX rate value (NaN)');
+      }
+      
+      // Convert DD/MM/YYYY to YYYY-MM-DDTHH:mm:ssZ
+      const dateParts = data[0].data.split('/');
+      if (dateParts.length !== 3) {
+        throw new Error('Invalid PTAX date format from SGS');
+      }
+      // PTAX is typically defined in the afternoon. Using 16:00 UTC as a generic time.
+      const isoDateTime = `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}T16:00:00Z`;
+
+      return {
+        rate: rate,
+        dateTime: isoDateTime,
+      };
+    } else {
+      throw new Error('Invalid PTAX data format from SGS');
+    }
+  } catch (e: any) {
+    console.error(`Error fetching PTAX Venda (SGS ${sgsCodePtaxVenda}):`, e.message, e);
+    return null;
   }
-  console.error("Failed to fetch PTAX rate after several attempts.");
-  return null;
 }
 
 
@@ -486,5 +517,82 @@ export async function fetchHistoricalPtAXData(
   } catch (e: any) {
     console.error("Erro ao buscar dados históricos PTAX:", e.message, e);
     throw e; 
+  }
+}
+
+/**
+ * Fetches and calculates the geometric average of a historical series from BCB SGS.
+ * @param sgsCode The SGS code of the monthly series.
+ * @param numberOfYears The number of years of historical data to fetch.
+ * @returns An object containing the average annual rate, the source date range, and any error.
+ */
+export async function fetchAndCalculateHistoricalAverage(
+  sgsCode: string | number,
+  numberOfYears: number
+): Promise<DynamicHistoricalAverage> {
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setFullYear(endDate.getFullYear() - numberOfYears);
+
+  // Ensure startDate is at least the earliest possible for some series if needed, e.g. BCB start
+  // const earliestDataDate = new Date('1995-01-01'); // Example for some series
+  // if (startDate < earliestDataDate) {
+  //   startDate.setTime(earliestDataDate.getTime());
+  // }
+
+  const formatDate = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+  const apiStartDateStr = formatDate(startDate);
+  const apiEndDateStr = formatDate(endDate);
+  
+  let rawData: Array<{ data: string; valor: string }> = [];
+  try {
+    rawData = await fetchHistoricalSgsData(sgsCode, apiStartDateStr, apiEndDateStr);
+    if (!rawData || rawData.length === 0) {
+      return { value: null, isLoading: false, error: "Nenhum dado retornado pela API.", sourceSgsCode: sgsCode };
+    }
+
+    const monthlyValues: number[] = rawData.map(item => parseFloat(item.valor.replace(',', '.')) / 100).filter(v => !isNaN(v));
+
+    if (monthlyValues.length === 0) {
+      return { value: null, isLoading: false, error: "Dados retornados não contêm valores numéricos válidos.", sourceSgsCode: sgsCode };
+    }
+
+    // Geometric mean calculation
+    let productOfGrowthFactors = 1;
+    for (const monthlyRate of monthlyValues) {
+      productOfGrowthFactors *= (1 + monthlyRate);
+    }
+
+    const averageMonthlyGrowthFactor = Math.pow(productOfGrowthFactors, 1 / monthlyValues.length);
+    const averageAnnualRate = (Math.pow(averageMonthlyGrowthFactor, 12) - 1) * 100;
+
+    if (isNaN(averageAnnualRate)) {
+        return { value: null, isLoading: false, error: "Cálculo da média resultou em NaN.", sourceSgsCode: sgsCode };
+    }
+
+    const firstDataDate = rawData[0].data; // dd/MM/yyyy
+    const lastDataDate = rawData[rawData.length - 1].data; // dd/MM/yyyy
+    
+    const formatDisplayDate = (dmyString: string) => {
+        const parts = dmyString.split('/');
+        return `${parts[1]}/${parts[2]}`; // MM/YYYY
+    }
+
+    return {
+      value: averageAnnualRate,
+      isLoading: false,
+      error: null,
+      sourceDateRange: `${formatDisplayDate(firstDataDate)} - ${formatDisplayDate(lastDataDate)} (${monthlyValues.length} meses)`,
+      sourceSgsCode: sgsCode
+    };
+
+  } catch (e: any) {
+    console.error(`Error fetching/calculating historical average for SGS ${sgsCode}:`, e.message, e);
+    return { 
+        value: null, 
+        isLoading: false, 
+        error: `Falha ao buscar/calcular dados históricos (SGS ${sgsCode}).`, 
+        sourceSgsCode: sgsCode 
+    };
   }
 }

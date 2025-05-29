@@ -1,13 +1,9 @@
+import { ProjectionPoint, MonthlyProjectionPoint, InputFormData, SpecificContribution } from '../types';
 
-import { ProjectionPoint, MonthlyProjectionPoint } from '../types';
-
-interface CalculationParams {
-  initialInvestment: number;
-  contributionAmount: number;
-  isContributionAnnual: boolean;
-  interestRateValue: number; // The rate value itself (e.g., 6 for 6%)
-  isInterestRateAnnual: boolean; // True if interestRateValue is annual, false if monthly
-  investmentPeriodYears: number;
+interface CalculationParams extends InputFormData {
+  // isContributionAnnual and isInterestRateAnnual are fixed for this calculator's context
+  // isContributionAnnual: boolean; // always false
+  // isInterestRateAnnual: boolean; // always true
 }
 
 interface CalculationResult {
@@ -18,79 +14,127 @@ interface CalculationResult {
 export const calculateProjection = (params: CalculationParams): CalculationResult => {
   const {
     initialInvestment,
-    contributionAmount,
-    isContributionAnnual,
-    interestRateValue,
-    isInterestRateAnnual,
-    investmentPeriodYears,
+    contributionValue: initialMonthlyContribution, // Renamed for clarity
+    rateValue, // Annual rate
+    investmentPeriodYears: originalInvestmentPeriodYears, // Original input by user
+    
+    // Advanced Simulation
+    enableAdvancedSimulation,
+    advancedSimModeRetirement,
+    currentAge,
+    targetAge,
+    adjustContributionsForInflation,
+    expectedInflationRate, // Annual %
+    // desiredMonthlyIncomeToday, // This is handled in ResultsDisplay
+
+    advancedSimModeSpecificContributions,
+    specificContributions,
   } = params;
 
   const yearlyProjection: ProjectionPoint[] = [];
   const monthlyProjection: MonthlyProjectionPoint[] = [];
 
-  if (investmentPeriodYears <= 0) {
+  let actualInvestmentPeriodYears = originalInvestmentPeriodYears;
+  if (enableAdvancedSimulation && advancedSimModeRetirement && currentAge && targetAge && targetAge > currentAge) {
+    actualInvestmentPeriodYears = targetAge - currentAge;
+  }
+
+  if (actualInvestmentPeriodYears <= 0) {
     return { yearly: [], monthly: [] };
   }
 
   let monthlyEffectiveRate: number;
-  if (isInterestRateAnnual) {
-    if (interestRateValue === -100) { // Avoid issues with (1 - 1)^(1/12) resulting in NaN for -100%
-      monthlyEffectiveRate = -1; // Represents -100% monthly, total loss
-    } else {
-      monthlyEffectiveRate = Math.pow(1 + interestRateValue / 100, 1 / 12) - 1;
-    }
+  if (rateValue === -100) { 
+    monthlyEffectiveRate = -1; 
   } else {
-    monthlyEffectiveRate = interestRateValue / 100;
+    monthlyEffectiveRate = Math.pow(1 + rateValue / 100, 1 / 12) - 1;
   }
   
   if (isNaN(monthlyEffectiveRate) || !isFinite(monthlyEffectiveRate)) {
-    console.error("Invalid monthly effective rate calculated:", monthlyEffectiveRate, "from rateValue:", interestRateValue, "isAnnual:", isInterestRateAnnual);
-    return { yearly: [], monthly: [] }; // Prevent further calculation with NaN
+    console.error("Invalid monthly effective rate calculated:", monthlyEffectiveRate, "from rateValue:", rateValue);
+    return { yearly: [], monthly: [] }; 
   }
 
+  const annualInflationRateDecimal = (adjustContributionsForInflation && expectedInflationRate) ? (expectedInflationRate / 100) : 0;
 
-  const totalMonths = investmentPeriodYears * 12;
+  const totalMonths = actualInvestmentPeriodYears * 12;
 
   let currentBalance = initialInvestment;
-  let cumulativeContributionsOnly = 0; // Tracks only periodic contributions
+  let cumulativeContributionsOnly = 0; 
   let cumulativeInterest = 0;
   
   let yearStartBalance = initialInvestment;
-  let yearContributions = 0;
+  let yearContributions = 0; // Tracks all contributions within a year (regular + specific)
   let yearInterest = 0;
+
+  const sortedSpecificContributions = advancedSimModeSpecificContributions && specificContributions
+    ? [...specificContributions].sort((a, b) => (a.year * 12 + a.month) - (b.year * 12 + b.month))
+    : [];
+  
+  let specificContributionIndex = 0;
 
   for (let month = 1; month <= totalMonths; month++) {
     const currentGlobalMonth = month;
     const currentYearForMonth = Math.ceil(month / 12);
     const currentMonthInYear = month - (currentYearForMonth - 1) * 12;
+    
+    const investorAgeCurrent = (enableAdvancedSimulation && advancedSimModeRetirement && currentAge) 
+                               ? currentAge + currentYearForMonth -1 // Age at start of year
+                               : undefined; 
+    // More precise age tracking (at end of month):
+    let investorAgeAtMonthEnd: number | undefined = undefined;
+    if (enableAdvancedSimulation && advancedSimModeRetirement && currentAge) {
+        const elapsedYears = (month -1) / 12;
+        investorAgeAtMonthEnd = currentAge + Math.floor(elapsedYears);
+        // If current month is the birth month, increment age. Assuming birth month is not relevant here, age increments at year change.
+        // Or, more simply:
+        investorAgeAtMonthEnd = currentAge + Math.floor((currentGlobalMonth -1) / 12);
+    }
+
+
     const initialBalanceForThisMonth = currentBalance;
 
+    // Apply interest
     const interestForMonth = currentBalance * monthlyEffectiveRate;
     currentBalance += interestForMonth;
     cumulativeInterest += interestForMonth;
     yearInterest += interestForMonth;
 
-    let contributionThisMonth = 0;
-    if (isContributionAnnual) {
-      if (currentMonthInYear === 12) { // Apply annual contribution at the end of the 12th month of the cycle
-        contributionThisMonth = contributionAmount;
-      }
-    } else { // Monthly contribution
-      contributionThisMonth = contributionAmount;
+    // Regular monthly contribution
+    let actualMonthlyContribution = initialMonthlyContribution;
+    if (enableAdvancedSimulation && adjustContributionsForInflation && annualInflationRateDecimal > 0 && currentYearForMonth > 1) {
+      actualMonthlyContribution = initialMonthlyContribution * Math.pow(1 + annualInflationRateDecimal, currentYearForMonth - 1);
     }
     
-    currentBalance += contributionThisMonth;
-    cumulativeContributionsOnly += contributionThisMonth;
-    yearContributions += contributionThisMonth;
+    currentBalance += actualMonthlyContribution;
+    cumulativeContributionsOnly += actualMonthlyContribution;
+    yearContributions += actualMonthlyContribution;
+    
+    // Specific contributions for this month
+    let specificContributionThisMonthAmount = 0;
+    if (advancedSimModeSpecificContributions && sortedSpecificContributions) {
+      while (specificContributionIndex < sortedSpecificContributions.length &&
+             sortedSpecificContributions[specificContributionIndex].year === currentYearForMonth &&
+             sortedSpecificContributions[specificContributionIndex].month === currentMonthInYear) {
+        const specContrib = sortedSpecificContributions[specificContributionIndex];
+        currentBalance += specContrib.amount;
+        cumulativeContributionsOnly += specContrib.amount; // Specific contributions also add to total invested
+        yearContributions += specContrib.amount;
+        specificContributionThisMonthAmount += specContrib.amount;
+        specificContributionIndex++;
+      }
+    }
 
     monthlyProjection.push({
       globalMonth: currentGlobalMonth,
       year: currentYearForMonth,
       monthInYear: currentMonthInYear,
       initialBalanceMonthly: initialBalanceForThisMonth,
-      contributionMonthly: contributionThisMonth,
+      contributionMonthly: actualMonthlyContribution,
+      specificContributionThisMonth: specificContributionThisMonthAmount,
       interestEarnedMonthly: interestForMonth,
       finalBalanceMonthly: currentBalance,
+      age: investorAgeAtMonthEnd,
     });
     
     if (month % 12 === 0 || month === totalMonths) {
@@ -98,11 +142,12 @@ export const calculateProjection = (params: CalculationParams): CalculationResul
       yearlyProjection.push({
         year: currentYear,
         initialBalance: yearStartBalance,
-        totalContributions: yearContributions, // Contributions made *during* this year
+        totalContributions: yearContributions, 
         totalInterestEarned: yearInterest,
         finalBalance: currentBalance,
-        cumulativeContributions: initialInvestment + cumulativeContributionsOnly, // Initial + all periodic contributions
+        cumulativeContributions: initialInvestment + cumulativeContributionsOnly,
         cumulativeInterest: cumulativeInterest,
+        age: (enableAdvancedSimulation && advancedSimModeRetirement && currentAge) ? currentAge + currentYear -1 : undefined,
       });
       yearStartBalance = currentBalance;
       yearContributions = 0;

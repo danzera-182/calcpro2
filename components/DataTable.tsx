@@ -1,16 +1,18 @@
-
 import React from 'react';
-import { ProjectionPoint } from '../types';
+import { ProjectionPoint, InputFormData } from '../types'; // Added InputFormData
 import { formatCurrency } from '../utils/formatters';
 
 interface DataTableProps {
   data: ProjectionPoint[];
+  inputValues: InputFormData; // Added to check for advanced sim options
 }
 
-const DataTable: React.FC<DataTableProps> = ({ data }) => {
+const DataTable: React.FC<DataTableProps> = ({ data, inputValues }) => {
   if (!data || data.length === 0) {
     return <p className="text-center text-gray-500 dark:text-gray-400">Não há dados para exibir na tabela.</p>;
   }
+  
+  const showAgeColumn = inputValues.enableAdvancedSimulation && inputValues.advancedSimModeRetirement && inputValues.currentAge;
 
   return (
     <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
@@ -18,6 +20,7 @@ const DataTable: React.FC<DataTableProps> = ({ data }) => {
         <thead className="bg-gray-50 dark:bg-gray-700/50">
           <tr>
             <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Ano</th>
+            {showAgeColumn && <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Idade</th>}
             <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Saldo Inicial</th>
             <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Aportes Anuais</th>
             <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Juros Anuais</th>
@@ -30,6 +33,7 @@ const DataTable: React.FC<DataTableProps> = ({ data }) => {
           {data.map((row) => (
             <tr key={row.year} className="hover:bg-gray-50/50 dark:hover:bg-gray-700/80 transition-colors">
               <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{row.year}</td>
+              {showAgeColumn && <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">{row.age}</td>}
               <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">{formatCurrency(row.initialBalance)}</td>
               <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">{formatCurrency(row.totalContributions)}</td>
               <td className="px-4 py-3 whitespace-nowrap text-sm text-green-600 dark:text-green-500">{formatCurrency(row.totalInterestEarned)}</td>
@@ -40,6 +44,11 @@ const DataTable: React.FC<DataTableProps> = ({ data }) => {
           ))}
         </tbody>
       </table>
+       {inputValues.enableAdvancedSimulation && inputValues.advancedSimModeSpecificContributions && inputValues.specificContributions && inputValues.specificContributions.length > 0 && (
+        <p className="p-2 text-xs text-gray-500 dark:text-gray-400">
+          Nota: A coluna "Aportes Anuais" inclui tanto os aportes regulares mensais (potencialmente corrigidos pela inflação, se aplicável) quanto os aportes específicos definidos.
+        </p>
+      )}
     </div>
   );
 };

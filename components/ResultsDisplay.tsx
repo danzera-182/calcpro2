@@ -1,76 +1,127 @@
 
 import React, { useState } from 'react';
-import { ScenarioData, InputFormData, ProjectionPoint } from '../types'; // Removed BacktestResults
+import { ScenarioData, InputFormData, ProjectionPoint, RetirementAnalysisResults } from '../types';
 import LineChartComponent from './LineChartComponent';
 import DataTable from './DataTable';
 import MonthlyDataTable from './MonthlyDataTable';
-// import BacktestChartComponent from './BacktestChartComponent'; // Removed
 import { Card } from './ui/Card';
 import Button from './ui/Button';
-// import { MAX_HISTORICAL_DATA_YEARS } from '../utils/mockBenchmarkData'; // Removed
 import { formatCurrency, formatNumber } from '../utils/formatters';
+import { DEFAULT_SAFE_WITHDRAWAL_RATE } from '../constants';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 
 interface ResultsDisplayProps {
   scenarioData: ScenarioData;
-  // backtestResults: BacktestResults | null; // Removed
   inputValues: InputFormData;
 }
 
 type ProjectionView = 'yearly' | 'monthly';
 
+const calculateRetirementAnalysis = (
+  yearlyProjection: ProjectionPoint[], 
+  inputValues: InputFormData
+): RetirementAnalysisResults | null => {
+  if (!inputValues.enableAdvancedSimulation || !inputValues.advancedSimModeRetirement || 
+      !inputValues.targetAge || !inputValues.currentAge || !inputValues.desiredMonthlyIncomeToday) {
+    return null;
+  }
+
+  const retirementYearData = yearlyProjection.find(p => p.age === inputValues.targetAge! -1 ); // Data at start of targetAge, or end of (targetAge-1)
+  
+  if (!retirementYearData) {
+     const lastPoint = yearlyProjection[yearlyProjection.length -1];
+     if(lastPoint && lastPoint.age === inputValues.targetAge! -1){
+        // continue with lastPoint as retirementYearData
+     } else {
+        console.warn("Retirement target age data point not found in projection.");
+        return null;
+     }
+  }
+  const projectedCapitalAtRetirement = retirementYearData ? retirementYearData.finalBalance : yearlyProjection[yearlyProjection.length-1].finalBalance;
+
+
+  let finalDesiredMonthlyIncome = inputValues.desiredMonthlyIncomeToday;
+  if (inputValues.adjustContributionsForInflation && inputValues.expectedInflationRate) {
+    const inflationAdjustmentYears = inputValues.targetAge - inputValues.currentAge;
+    finalDesiredMonthlyIncome = inputValues.desiredMonthlyIncomeToday * Math.pow(1 + (inputValues.expectedInflationRate / 100), inflationAdjustmentYears);
+  }
+
+  const annualDesiredIncome = finalDesiredMonthlyIncome * 12;
+  const capitalNeededForDesiredIncome = annualDesiredIncome / DEFAULT_SAFE_WITHDRAWAL_RATE;
+  const canMeetGoal = projectedCapitalAtRetirement >= capitalNeededForDesiredIncome;
+
+  let achievableMonthlyIncomeWithProjectedCapital: number | undefined = undefined;
+  if (!canMeetGoal) {
+    const achievableAnnualIncome = projectedCapitalAtRetirement * DEFAULT_SAFE_WITHDRAWAL_RATE;
+    achievableMonthlyIncomeWithProjectedCapital = achievableAnnualIncome / 12;
+  }
+
+  return {
+    targetAge: inputValues.targetAge,
+    projectedCapitalAtRetirement,
+    finalDesiredMonthlyIncome,
+    capitalNeededForDesiredIncome,
+    canMeetGoal,
+    swrUsed: DEFAULT_SAFE_WITHDRAWAL_RATE,
+    achievableMonthlyIncomeWithProjectedCapital,
+  };
+};
+
+
 const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ scenarioData, inputValues }) => {
   const [projectionView, setProjectionView] = useState<ProjectionView>('yearly');
+
+  const retirementAnalysisResults = scenarioData.data ? calculateRetirementAnalysis(scenarioData.data, inputValues) : null;
+
 
   const handleExportPDF = () => {
     const doc = new jsPDF();
     const pageHeight = doc.internal.pageSize.height;
-    let finalY = 20; // Initial Y position
+    let finalY = 20; 
 
-    // Title
     doc.setFontSize(18);
     doc.text("Relatório de Projeção de Investimentos", doc.internal.pageSize.width / 2, finalY, { align: 'center' });
     finalY += 10;
 
-    // Date
     doc.setFontSize(10);
     doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR')}`, doc.internal.pageSize.width / 2, finalY, { align: 'center' });
     finalY += 10;
 
-    // Input Parameters
     doc.setFontSize(12);
     doc.text("Parâmetros da Simulação:", 14, finalY);
     finalY += 7;
     doc.setFontSize(10);
 
-    // Calculate equivalent monthly rate for display in PDF
     const annualRateDecimal = inputValues.rateValue / 100;
-    let monthlyEquivalentRatePercent = 0;
-    if (annualRateDecimal > -1) {
-        monthlyEquivalentRatePercent = (Math.pow(1 + annualRateDecimal, 1 / 12) - 1) * 100;
-    } else {
-        monthlyEquivalentRatePercent = -100;
-    }
+    let monthlyEquivalentRatePercent = (Math.pow(1 + annualRateDecimal, 1 / 12) - 1) * 100;
+    if (annualRateDecimal <= -1) monthlyEquivalentRatePercent = -100;
 
-    const rateDescription = `Taxa Anual Informada: ${formatNumber(inputValues.rateValue)}% a.a. (Equivalente: ~${formatNumber(monthlyEquivalentRatePercent, 4)}% a.m.)`;
-    const contributionDescription = `Aporte: ${formatCurrency(inputValues.contributionValue)} (Mensal)`;
 
     const params = [
       `Descrição da Projeção: ${scenarioData.label}`,
       `Valor Inicial: ${formatCurrency(inputValues.initialInvestment)}`,
-      contributionDescription,
-      rateDescription,
+      `Aporte Mensal Base: ${formatCurrency(inputValues.contributionValue)}` + 
+        (inputValues.enableAdvancedSimulation && inputValues.adjustContributionsForInflation && inputValues.expectedInflationRate ? ` (corrigido por inflação de ${inputValues.expectedInflationRate}% a.a.)` : ''),
+      `Taxa Anual Informada: ${formatNumber(inputValues.rateValue)}% a.a. (Equivalente: ~${formatNumber(monthlyEquivalentRatePercent, 4)}% a.m.)`,
       `Período do Investimento: ${inputValues.investmentPeriodYears} ano(s)`,
     ];
+
+    if (inputValues.enableAdvancedSimulation && inputValues.advancedSimModeRetirement && inputValues.currentAge && inputValues.targetAge) {
+      params.push(`Idade Atual: ${inputValues.currentAge}, Idade Alvo Aposentadoria: ${inputValues.targetAge}`);
+      params.push(`Renda Mensal Desejada (hoje): ${formatCurrency(inputValues.desiredMonthlyIncomeToday || 0)}`);
+      if (inputValues.adjustContributionsForInflation && inputValues.expectedInflationRate) {
+        params.push(`Taxa de Inflação Esperada: ${formatNumber(inputValues.expectedInflationRate, 2)}% a.a.`);
+      }
+    }
+    
     params.forEach(param => {
       doc.text(param, 14, finalY);
       finalY += 6;
     });
-    finalY += 4; // Extra space before summary
+    finalY += 4; 
 
-    // Summary of Results
     const lastProjectionPointPdf = scenarioData.data[scenarioData.data.length - 1];
     if (lastProjectionPointPdf) {
         doc.setFontSize(12);
@@ -78,7 +129,7 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ scenarioData, inputValu
         finalY += 7;
         doc.setFontSize(10);
         const summary = [
-            `Valor Total Final Investido: ${formatCurrency(lastProjectionPointPdf.cumulativeContributions)}`, // Includes initial
+            `Valor Total Final Investido: ${formatCurrency(lastProjectionPointPdf.cumulativeContributions)}`, 
             `Total de Juros Ganhos: ${formatCurrency(lastProjectionPointPdf.cumulativeInterest)}`,
             `Valor Final Acumulado: ${formatCurrency(lastProjectionPointPdf.finalBalance)}`,
         ];
@@ -87,9 +138,31 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ scenarioData, inputValu
             finalY += 6;
         });
     }
-    finalY += 4; // Extra space before table
+    finalY += 4; 
+    
+    if (retirementAnalysisResults) {
+        doc.setFontSize(12);
+        doc.text("Análise de Aposentadoria:", 14, finalY);
+        finalY += 7;
+        doc.setFontSize(10);
+        const retirementSummary = [
+            `Idade Alvo: ${retirementAnalysisResults.targetAge} anos`,
+            `Patrimônio Projetado: ${formatCurrency(retirementAnalysisResults.projectedCapitalAtRetirement)}`,
+            `Renda Mensal Desejada (na aposentadoria): ${formatCurrency(retirementAnalysisResults.finalDesiredMonthlyIncome)}`,
+            `Capital Necessário (SWR ${retirementAnalysisResults.swrUsed*100}%): ${formatCurrency(retirementAnalysisResults.capitalNeededForDesiredIncome)}`,
+            `Meta Atingida: ${retirementAnalysisResults.canMeetGoal ? 'Sim' : 'Não'}`,
+        ];
+        if (!retirementAnalysisResults.canMeetGoal && retirementAnalysisResults.achievableMonthlyIncomeWithProjectedCapital !== undefined) {
+            retirementSummary.push(`Renda Máxima Atingível com Patrimônio Projetado: ${formatCurrency(retirementAnalysisResults.achievableMonthlyIncomeWithProjectedCapital)}`);
+        }
+        retirementSummary.forEach(item => {
+            doc.text(item, 14, finalY);
+            finalY += 6;
+        });
+        finalY += 4;
+    }
 
-    // Yearly Projection Table
+
     doc.setFontSize(12);
     doc.text("Detalhes da Projeção Anual:", 14, finalY);
     finalY += 7;
@@ -108,7 +181,7 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ scenarioData, inputValu
         startY: finalY,
         head: [['Ano', 'Saldo Inicial', 'Aportes Anuais', 'Juros Anuais', 'Saldo Final', 'Total Aportado', 'Total Juros']],
         body: scenarioData.data.map(row => [
-            row.year,
+            row.year + (row.age ? ` (Idade ${row.age})` : ''),
             formatCurrency(row.initialBalance),
             formatCurrency(row.totalContributions),
             formatCurrency(row.totalInterestEarned),
@@ -145,8 +218,10 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ scenarioData, inputValu
         "Este é um relatório de simulação e não garante rentabilidade futura.",
         "Os valores apresentados são projeções baseadas nos parâmetros informados.",
         "Aportes são considerados mensais e a taxa de juros informada é anual (convertida para mensal nos cálculos).",
+         inputValues.enableAdvancedSimulation && inputValues.advancedSimModeSpecificContributions && inputValues.specificContributions && inputValues.specificContributions.length > 0 
+            ? "Aportes específicos foram incluídos na simulação." : "",
         "Consulte um profissional financeiro para decisões de investimento."
-    ];
+    ].filter(d => d);
     disclaimers.forEach(disc => {
         const splitText = doc.splitTextToSize(disc, doc.internal.pageSize.width - 28); 
         doc.text(splitText, 14, finalY);
@@ -165,7 +240,8 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ scenarioData, inputValu
     totalProfitability = ((lastProjectionPoint.finalBalance / lastProjectionPoint.cumulativeContributions) - 1) * 100;
   }
   
-  const totalPeriodicContributions = lastProjectionPoint ? lastProjectionPoint.cumulativeContributions - inputValues.initialInvestment : 0;
+  const totalPeriodicContributions = lastProjectionPoint ? lastProjectionPoint.cumulativeContributions - inputValues.initialInvestment - (inputValues.specificContributions?.reduce((sum, sc) => sum + sc.amount, 0) || 0) : 0;
+  const totalSpecificContributionsAmount = inputValues.specificContributions?.reduce((sum, sc) => sum + sc.amount, 0) || 0;
 
 
   return (
@@ -175,7 +251,8 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ scenarioData, inputValu
         <Card className="mb-6 sm:mb-8">
           <Card.Header>
             <Card.Title className="text-center">
-              Resumo da Projeção em {inputValues.investmentPeriodYears} Ano(s)
+              Resumo da Projeção em {inputValues.investmentPeriodYears} Ano(s) 
+              {retirementAnalysisResults ? ` (até Idade ${retirementAnalysisResults.targetAge})`: ''}
             </Card.Title>
           </Card.Header>
           <Card.Content className="space-y-4">
@@ -217,16 +294,70 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ scenarioData, inputValu
                   </span>
                 </div>
                 <div className="flex justify-between pl-4 text-xs">
-                  <span className="text-gray-500 dark:text-gray-500">&bull; Total Aportes Mensais:</span>
+                  <span className="text-gray-500 dark:text-gray-500">&bull; Total Aportes Mensais Regulares:</span>
                   <span className="font-normal text-gray-700 dark:text-gray-300">
                     {formatCurrency(totalPeriodicContributions)}
                   </span>
                 </div>
+                 {totalSpecificContributionsAmount > 0 && (
+                    <div className="flex justify-between pl-4 text-xs">
+                        <span className="text-gray-500 dark:text-gray-500">&bull; Total Aportes Específicos:</span>
+                        <span className="font-normal text-gray-700 dark:text-gray-300">
+                        {formatCurrency(totalSpecificContributionsAmount)}
+                        </span>
+                    </div>
+                 )}
               </div>
             </div>
           </Card.Content>
         </Card>
       )}
+
+      {/* Retirement Analysis Card */}
+      {retirementAnalysisResults && (
+        <Card className="mb-6 sm:mb-8">
+          <Card.Header>
+            <Card.Title className="text-center">Análise de Aposentadoria (Idade Alvo: {retirementAnalysisResults.targetAge})</Card.Title>
+          </Card.Header>
+          <Card.Content className="space-y-3 text-sm">
+            <div className={`p-3 rounded-md text-center ${retirementAnalysisResults.canMeetGoal ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30'}`}>
+              <p className={`font-semibold ${retirementAnalysisResults.canMeetGoal ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'}`}>
+                {retirementAnalysisResults.canMeetGoal 
+                  ? `🎉 Parabéns! Sua projeção atinge o capital necessário para a renda desejada.`
+                  : `⚠️ Atenção! Sua projeção atual não atinge o capital necessário para a renda desejada.`
+                }
+              </p>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600 dark:text-gray-400">Patrimônio Projetado aos {retirementAnalysisResults.targetAge} anos:</span>
+              <span className="font-medium text-gray-800 dark:text-gray-200">{formatCurrency(retirementAnalysisResults.projectedCapitalAtRetirement)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600 dark:text-gray-400">Renda Mensal Desejada (corrigida):</span>
+              <span className="font-medium text-gray-800 dark:text-gray-200">{formatCurrency(retirementAnalysisResults.finalDesiredMonthlyIncome)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600 dark:text-gray-400">Patrimônio Necessário para Renda Desejada (SWR {formatNumber(retirementAnalysisResults.swrUsed * 100,0)}%):</span>
+              <span className="font-medium text-gray-800 dark:text-gray-200">{formatCurrency(retirementAnalysisResults.capitalNeededForDesiredIncome)}</span>
+            </div>
+            {!retirementAnalysisResults.canMeetGoal && retirementAnalysisResults.achievableMonthlyIncomeWithProjectedCapital !== undefined && (
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">Renda Máxima Atingível com Patrimônio Projetado:</span>
+                <span className="font-medium text-orange-600 dark:text-orange-500">{formatCurrency(retirementAnalysisResults.achievableMonthlyIncomeWithProjectedCapital)}</span>
+              </div>
+            )}
+            <p className="text-xs text-gray-500 dark:text-gray-400 text-center pt-2 border-t border-gray-200 dark:border-slate-700/60">
+              {inputValues.adjustContributionsForInflation && inputValues.expectedInflationRate && 
+                `Renda mensal desejada e aportes foram corrigidos pela inflação de ${formatNumber(inputValues.expectedInflationRate,2)}% a.a. `
+              }
+              A Taxa de Saque Segura (SWR) de {formatNumber(retirementAnalysisResults.swrUsed * 100,0)}% a.a. é utilizada para estimar o capital necessário.
+              Historicamente, essa abordagem visa permitir que o patrimônio sustente retiradas anuais (corrigidas pela inflação) por um longo período (ex: 30+ anos),
+              sendo por isso associada a uma renda "vitalícia" no planejamento de aposentadoria.
+            </p>
+          </Card.Content>
+        </Card>
+      )}
+
 
       {/* Existing Results Card (Chart and Tables) */}
       <Card>
@@ -237,7 +368,11 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ scenarioData, inputValu
           <div>
             <h3 className="text-lg font-semibold mb-4 text-gray-800 dark:text-blue-400">Evolução Patrimonial Projetada</h3>
             {scenarioData.data.length > 1 ? (
-               <LineChartComponent data={scenarioData.data} />
+               <LineChartComponent 
+                    data={scenarioData.data} 
+                    specificContributions={inputValues.enableAdvancedSimulation && inputValues.advancedSimModeSpecificContributions ? inputValues.specificContributions : undefined}
+                    currentAge={inputValues.enableAdvancedSimulation && inputValues.advancedSimModeRetirement ? inputValues.currentAge : undefined}
+                />
             ) : (
               <p className="text-center text-gray-500 dark:text-gray-400 py-5">Dados insuficientes para gerar o gráfico da projeção (mínimo 2 anos).</p>
             )}
@@ -272,10 +407,10 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ scenarioData, inputValu
                 </div>
             </div>
             {projectionView === 'yearly' && scenarioData.data.length > 0 && (
-              <DataTable data={scenarioData.data} />
+              <DataTable data={scenarioData.data} inputValues={inputValues} />
             )}
             {projectionView === 'monthly' && scenarioData.monthlyData && scenarioData.monthlyData.length > 0 && (
-              <MonthlyDataTable data={scenarioData.monthlyData} />
+              <MonthlyDataTable data={scenarioData.monthlyData} inputValues={inputValues} />
             )}
              {((projectionView === 'yearly' && scenarioData.data.length === 0) ||
                (projectionView === 'monthly' && (!scenarioData.monthlyData || scenarioData.monthlyData.length === 0))) && (
@@ -284,8 +419,6 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ scenarioData, inputValu
           </div>
         </Card.Content>
       </Card>
-
-      {/* Backtest section removed */}
     </>
   );
 };
