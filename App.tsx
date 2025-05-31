@@ -47,6 +47,13 @@ const getAppViewFromHash = (hashInput: string | null | undefined): AppView => {
   return pathToViewMap[path] || 'selector';
 };
 
+// Define WarningIcon here if not globally available
+const WarningIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+  </svg>
+);
+
 
 const App: React.FC = () => {
   const [inputValues, setInputValues] = useState<InputFormData>(DEFAULT_INPUT_VALUES);
@@ -358,7 +365,18 @@ const App: React.FC = () => {
                 aria-label="Acessar Feed de Notícias (Stories)"
               >
                 <Card.Header>
-                  <Card.Title>📰 Feed de Notícias (Stories)</Card.Title>
+                  <Card.Title>
+                    <div className="flex items-center">
+                      📰 Feed de Notícias (Stories)
+                      <span 
+                        className="ml-2 inline-flex items-center bg-amber-100 dark:bg-amber-700/50 text-amber-700 dark:text-amber-300 text-xs font-semibold px-2 py-0.5 rounded-full"
+                        title="Esta funcionalidade está em fase de testes."
+                      >
+                        <WarningIcon className="w-3 h-3 mr-1 text-amber-500 dark:text-amber-400" />
+                        EM TESTES
+                      </span>
+                    </div>
+                  </Card.Title>
                 </Card.Header>
                 <Card.Content>
                   <p className="text-sm text-slate-600 dark:text-slate-400">

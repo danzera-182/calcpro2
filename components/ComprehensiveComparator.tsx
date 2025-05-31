@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, FC } from 'react';
 import { ComprehensiveInputs, InvestmentPeriodUnit, InvestmentCalculationResult } from '../types';
 import { DEFAULT_COMPREHENSIVE_INPUTS } from '../constants';
 import { Card } from './ui/Card';
@@ -10,6 +10,8 @@ import { getIrRate } from '../utils/fixedIncomeCalculations';
 import { formatCurrency, formatNumber, formatNumberForDisplay } from '../utils/formatters';
 import FormattedNumericInput from './ui/FormattedNumericInput'; 
 import { fetchEconomicIndicators, FetchedEconomicIndicators } from '../utils/economicIndicatorsAPI'; 
+import InfoTooltip from './ui/InfoTooltip';
+
 
 const InfoIcon: React.FC<{ title?: string }> = ({ title = "Informação" }) => (
   <span className="ml-1 text-xs text-slate-400 dark:text-slate-500 cursor-default" title={title}>
@@ -19,10 +21,11 @@ const InfoIcon: React.FC<{ title?: string }> = ({ title = "Informação" }) => (
 
 interface AutoFetchedMarkerProps {
   isFetched?: boolean;
+  tooltipText?: string;
 }
-const AutoFetchedMarker: React.FC<AutoFetchedMarkerProps> = ({ isFetched }) => {
+const AutoFetchedMarker: React.FC<AutoFetchedMarkerProps> = ({ isFetched, tooltipText }) => {
   if (!isFetched) return null;
-  return <span title="Valor preenchido automaticamente" className="text-blue-500 dark:text-blue-400 ml-1">*</span>;
+  return <InfoTooltip text={tooltipText || "Valor preenchido automaticamente com dados recentes."}><span className="text-blue-500 dark:text-blue-400 ml-1">*</span></InfoTooltip>;
 };
 
 
@@ -105,7 +108,7 @@ const ComprehensiveComparator: React.FC = () => {
   const [results, setResults] = useState<InvestmentCalculationResult[] | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false); 
   
-  const [isFetchingEconomicData, setIsFetchingEconomicData] = useState<boolean>(false);
+  const [isFetchingEconomicData, setIsFetchingEconomicData] = useState<boolean>(true);
   const [fetchedEcoData, setFetchedEcoData] = useState<FetchedEconomicIndicators | null>(null); 
   const [economicDataFetchError, setEconomicDataFetchError] = useState<string | null>(null);
   const [initialFetchedDataMarkers, setInitialFetchedDataMarkers] = useState<Partial<Record<AutoFetchTrackedKeys, boolean>>>({});
@@ -126,11 +129,27 @@ const ComprehensiveComparator: React.FC = () => {
         setFetchedEcoData(fetchedData);
         
         const newFetchedMarkers: Partial<Record<AutoFetchTrackedKeys, boolean>> = {};
-        if (fetchedData.selicRate !== undefined) newFetchedMarkers.selicRate = true;
-        if (fetchedData.cdiRate !== undefined) newFetchedMarkers.cdiRate = true;
-        if (fetchedData.trRate !== undefined) newFetchedMarkers.trRate = true; 
+        let selicTooltip = "Taxa Selic (a.a.)";
+        let cdiTooltip = "Taxa CDI (a.a.)";
+        let trTooltip = "Taxa TR (a.m.)";
+
+        if (fetchedData.selicRate !== undefined) {
+          newFetchedMarkers.selicRate = true;
+          selicTooltip = `Taxa Selic (Meta): ${formatNumberForDisplay(fetchedData.selicRate, {minimumFractionDigits: 2, maximumFractionDigits: 2})}% a.a. (Ref: ${fetchedData.selicReferenceDate || 'N/D'})`;
+        }
+        if (fetchedData.cdiRate !== undefined) {
+          newFetchedMarkers.cdiRate = true;
+          cdiTooltip = `Taxa CDI: ${formatNumberForDisplay(fetchedData.cdiRate, {minimumFractionDigits: 2, maximumFractionDigits: 2})}% a.a. (Anualizada, Ref: ${fetchedData.cdiReferenceDate || 'N/D'})`;
+        }
+        if (fetchedData.trRate !== undefined) {
+          newFetchedMarkers.trRate = true;
+          trTooltip = `Taxa TR: ${formatNumberForDisplay(fetchedData.trRate, {minimumFractionDigits: 4, maximumFractionDigits: 4})}% a.m. (Ref: ${fetchedData.trReferenceDate || 'N/D'})`;
+        }
         
         setInitialFetchedDataMarkers(newFetchedMarkers);
+        // Store tooltips in state or pass directly to AutoFetchedMarker
+        // For simplicity, I'll update state for inputs.selicRateTooltip etc. if needed,
+        // or construct them on the fly when rendering AutoFetchedMarker. Let's try on the fly.
 
         setInputs(prev => ({
           ...prev,
@@ -145,17 +164,18 @@ const ComprehensiveComparator: React.FC = () => {
 
         if (fetchedData.ipcaRate !== undefined) {
           newIpcaIsFetched = true;
+          const ipcaRateFormatted = formatNumberForDisplay(fetchedData.ipcaRate, {minimumFractionDigits: 2, maximumFractionDigits: 2});
           if (fetchedData.ipcaSourceType === 'accumulated12m') {
             if (fetchedData.ipcaReferenceDate) { 
-              newIpcaTooltipText = `IPCA real acumulado nos 12 meses encerrados em ${fetchedData.ipcaReferenceDate} (dado mais recente disponível).`;
+              newIpcaTooltipText = `IPCA real acumulado: ${ipcaRateFormatted}% (12m até ${fetchedData.ipcaReferenceDate}).`;
             } else {
-              newIpcaTooltipText = "IPCA real acumulado nos últimos 12 meses (dado mais recente disponível).";
+              newIpcaTooltipText = `IPCA real acumulado: ${ipcaRateFormatted}% (últimos 12 meses).`;
             }
           } else { 
             if (fetchedData.ipcaReferenceDate) { 
-               newIpcaTooltipText = `Inflação (IPCA) anual projetada para ${fetchedData.ipcaReferenceDate}.`;
+               newIpcaTooltipText = `IPCA projetado: ${ipcaRateFormatted}% (Focus para ${fetchedData.ipcaReferenceDate}).`;
             } else {
-               newIpcaTooltipText = "Inflação (IPCA) anual projetada.";
+               newIpcaTooltipText = `IPCA projetado: ${ipcaRateFormatted}% (Focus).`;
             }
           }
         }
@@ -195,7 +215,7 @@ const ComprehensiveComparator: React.FC = () => {
       setInitialFetchedDataMarkers(prev => ({ ...prev, [keyName]: false }));
     }
     if (name === 'ipcaRate' && ipcaDisplayConfig.isFetched) {
-      setIpcaDisplayConfig({tooltipText: "Inflação (IPCA) anual.", isFetched: false});
+      setIpcaDisplayConfig(prev => ({...prev, isFetched: false}));
     }
   }, [initialFetchedDataMarkers, ipcaDisplayConfig.isFetched]);
 
@@ -339,427 +359,193 @@ const ComprehensiveComparator: React.FC = () => {
       const tipcaCustodyAmountTotal = Math.max(0, tipcaFVGrossPreFee) * custodyFeeB3AnnualRateDecimal * totalYears;
       const tipcaBalanceAfterCustody_BeforeIR = tipcaFVGrossPreFee - tipcaCustodyAmountTotal;
       const tipcaProfit_AfterCustody_BeforeIR = tipcaBalanceAfterCustody_BeforeIR - tipcaTotalInvested;
-      const tipcaIrRateDecimal = tipcaProfit_AfterCustody_BeforeIR > 0 ? getIrRate(termDaysForIr) : 0;
+      const tipcaIrRateDecimal = tipcaProfit_AfterCustody_BeforeIR > 0 ? getIrRate(termDaysForIr) : 0; // Corrected variable name
       const tipcaIrAmount = tipcaProfit_AfterCustody_BeforeIR > 0 ? tipcaProfit_AfterCustody_BeforeIR * tipcaIrRateDecimal : 0;
       const tipcaNetBalance = tipcaBalanceAfterCustody_BeforeIR - tipcaIrAmount;
-          
+
       calculatedResults.push({
         name: "Tesouro IPCA+",
-        finalGrossBalance: tipcaBalanceAfterCustody_BeforeIR, 
-        netBalance: tipcaNetBalance,                                 
+        finalGrossBalance: tipcaBalanceAfterCustody_BeforeIR,
+        netBalance: tipcaNetBalance,
         totalInvested: tipcaTotalInvested,
-        totalInterestEarned: tipcaProfit_AfterCustody_BeforeIR, 
+        totalInterestEarned: tipcaProfit_AfterCustody_BeforeIR,
         irRateAppliedPercent: tipcaIrRateDecimal * 100,
         irAmount: tipcaIrAmount,
-        effectiveMonthlyRateUsedPercent: tipcaMonthlyGross_BeforeFee * 100, 
-        effectiveAnnualRateUsedPercent: tipcaGrossNominalAnnual_BeforeFee * 100, 
+        effectiveMonthlyRateUsedPercent: tipcaMonthlyGross_BeforeFee * 100,
+        effectiveAnnualRateUsedPercent: tipcaGrossNominalAnnual_BeforeFee * 100,
         operationalFeesPaid: tipcaCustodyAmountTotal,
       });
 
-      const cdiAnnualDecimal = validatedInputs.cdiRate / 100; 
-
-      const cdbAnnualGrossRate = cdiAnnualDecimal * (cdbRatePercentageOfCdi / 100);
-      const cdbMonthlyGrossRate = annualToMonthlyRate(cdbAnnualGrossRate);
+      const cdbGrossAnnualRateDecimal = (cdbRatePercentageOfCdi / 100) * (validatedInputs.cdiRate / 100);
+      const cdbMonthlyGrossRate = annualToMonthlyRate(cdbGrossAnnualRateDecimal);
+      const cdbSimGross = calculateFVDirectFormula({ pv: initialInvestment, pmt: monthlyContributions, i: cdbMonthlyGrossRate, n: totalMonths });
+      const cdbProfitGross = cdbSimGross.totalInterestEarned;
+      const cdbIrRateDecimal = cdbProfitGross > 0 ? getIrRate(termDaysForIr) : 0;
+      const cdbIrAmount = cdbProfitGross > 0 ? cdbProfitGross * cdbIrRateDecimal : 0;
+      const cdbNetBalance = cdbSimGross.finalBalance - cdbIrAmount;
       
-      const cdbSimGross = calculateFVDirectFormula({ 
-          pv: initialInvestment, 
-          pmt: monthlyContributions, 
-          i: cdbMonthlyGrossRate, 
-          n: totalMonths 
-      });
-
-      const cdbFinalGrossBalance_PreIR = cdbSimGross.finalBalance;
-      const cdbTotalInterestEarned_PreIR = cdbSimGross.totalInterestEarned;
-      const cdbTotalInvested = cdbSimGross.totalInvested;
-      const cdbIrRateDecimal = cdbTotalInterestEarned_PreIR > 0 ? getIrRate(termDaysForIr) : 0;
-      const cdbIrAmount = cdbTotalInterestEarned_PreIR > 0 ? cdbTotalInterestEarned_PreIR * cdbIrRateDecimal : 0;
-      const cdbNetBalance = cdbFinalGrossBalance_PreIR - cdbIrAmount;
-
       calculatedResults.push({
-        name: `CDB ${formatNumberForDisplay(cdbRatePercentageOfCdi, { minimumFractionDigits: 0, maximumFractionDigits: 2})}% CDI`,
-        finalGrossBalance: cdbFinalGrossBalance_PreIR, 
+        name: `CDB (${formatNumber(cdbRatePercentageOfCdi,0)}% CDI)`,
+        finalGrossBalance: cdbSimGross.finalBalance,
         netBalance: cdbNetBalance,
-        totalInvested: cdbTotalInvested,
-        totalInterestEarned: cdbTotalInterestEarned_PreIR, 
+        totalInvested: cdbSimGross.totalInvested,
+        totalInterestEarned: cdbProfitGross,
         irRateAppliedPercent: cdbIrRateDecimal * 100,
         irAmount: cdbIrAmount,
-        effectiveMonthlyRateUsedPercent: cdbMonthlyGrossRate * 100, 
-        effectiveAnnualRateUsedPercent: cdbAnnualGrossRate * 100,
-        operationalFeesPaid: 0,   
+        effectiveMonthlyRateUsedPercent: cdbMonthlyGrossRate * 100,
+        effectiveAnnualRateUsedPercent: cdbGrossAnnualRateDecimal * 100,
+        operationalFeesPaid: 0,
       });
       
-      const lciLcaGrossAnnual = cdiAnnualDecimal * (lciLcaRatePercentageOfCdi / 100);
-      const lciLcaMonthly = annualToMonthlyRate(lciLcaGrossAnnual);
-      const lciLcaSim = calculateFVDirectFormula({ pv: initialInvestment, pmt: monthlyContributions, i: lciLcaMonthly, n: totalMonths });
+      const lciLcaGrossAnnualRateDecimal = (lciLcaRatePercentageOfCdi / 100) * (validatedInputs.cdiRate / 100);
+      const lciLcaMonthlyGrossRate = annualToMonthlyRate(lciLcaGrossAnnualRateDecimal);
+      const lciLcaSim = calculateFVDirectFormula({ pv: initialInvestment, pmt: monthlyContributions, i: lciLcaMonthlyGrossRate, n: totalMonths });
+      
       calculatedResults.push({
-        name: `LCI/LCA ${formatNumberForDisplay(lciLcaRatePercentageOfCdi, { minimumFractionDigits: 0, maximumFractionDigits: 2})}% CDI`,
-        finalGrossBalance: lciLcaSim.finalBalance, 
+        name: `LCI/LCA (${formatNumber(lciLcaRatePercentageOfCdi,0)}% CDI)`,
+        finalGrossBalance: lciLcaSim.finalBalance,
         netBalance: lciLcaSim.finalBalance, 
         totalInvested: lciLcaSim.totalInvested,
-        totalInterestEarned: lciLcaSim.totalInterestEarned, 
-        irRateAppliedPercent: 0,
+        totalInterestEarned: lciLcaSim.totalInterestEarned,
+        irRateAppliedPercent: 0, 
         irAmount: 0,
-        effectiveMonthlyRateUsedPercent: lciLcaMonthly * 100,
-        effectiveAnnualRateUsedPercent: lciLcaGrossAnnual * 100,
+        effectiveMonthlyRateUsedPercent: lciLcaMonthlyGrossRate * 100,
+        effectiveAnnualRateUsedPercent: lciLcaGrossAnnualRateDecimal * 100,
         operationalFeesPaid: 0,
       });
 
-      calculatedResults.sort((a, b) => b.netBalance - a.netBalance);
-      
-      setResults(calculatedResults);
-      setIsLoading(false); 
-    }, 1500); 
-  }, [inputs, poupancaCalculatedRates]); 
-
-  const moneyDisplayOptions = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
-  const percentDisplayOptions = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
-  const highPrecisionPercentDisplayOptions = { minimumFractionDigits: 2, maximumFractionDigits: 4 }; 
-  const integerPercentDisplayOptions = { minimumFractionDigits: 0, maximumFractionDigits: 2 }; 
-  
-  const commonInputProps = {
-    disabled: isLoading || isFetchingEconomicData, 
-  };
-  
-  const getSelicTooltip = () => {
-    let base = "Taxa Selic Meta anual (SGS 432). Usada para calcular a rentabilidade da Poupança.";
-    if (initialFetchedDataMarkers.selicRate && fetchedEcoData?.selicReferenceDate) {
-      base += ` Data de referência (SGS 432): ${fetchedEcoData.selicReferenceDate}.`;
-    }
-    return base;
-  };
-
-  const getCdiTooltip = () => {
-    let base = "Taxa CDI anualizada (com base no último valor diário da SGS 12).";
-    if (initialFetchedDataMarkers.cdiRate && fetchedEcoData?.cdiReferenceDate) {
-      base += ` Data de referência (SGS 12): ${fetchedEcoData.cdiReferenceDate}.`;
-    }
-    return base;
-  };
-  
-  const getTrTooltip = () => {
-    let base = "Taxa Referencial (TR) mensal (SGS 226). Usada na Poupança.";
-    if (initialFetchedDataMarkers.trRate && fetchedEcoData?.trReferenceDate) {
-      base += ` Data de referência (SGS 226): ${fetchedEcoData.trReferenceDate}.`;
-    } else if (!initialFetchedDataMarkers.trRate && !isFetchingEconomicData && !economicDataFetchError?.includes('TR')) { 
-      base = "Taxa Referencial (TR) mensal. Valor manual.";
-    }
-    return base;
-  };
-  
-  const getPoupancaTooltip = () => {
-    const selicStatus = initialFetchedDataMarkers.selicRate ? '*' : '';
-    const trStatus = initialFetchedDataMarkers.trRate ? '*' : '';
-    return `Calculada com Selic${selicStatus} e TR${trStatus}. Regra: ${poupancaCalculatedRates.ruleApplied}. (*: auto-preenchido)`;
-  };
-
+      setResults(calculatedResults.sort((a, b) => b.netBalance - a.netBalance));
+      setIsLoading(false);
+    }, 1000);
+  }, [inputs, poupancaCalculatedRates.monthly]);
 
   return (
-    <Card>
-      <Card.Header>
-        <Card.Title className="text-center">Que aplicação rende mais?</Card.Title>
-      </Card.Header>
-      <Card.Content className="space-y-8">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-6">
-          <FormattedNumericInput
-            label="Investimento inicial"
-            id="initialInvestment"
-            name="initialInvestment"
-            value={inputs.initialInvestment}
-            onChange={handleFormattedInputChange}
-            min={0}
-            icon={<span className="text-slate-400 dark:text-slate-500">R$</span>}
-            displayOptions={moneyDisplayOptions}
-            {...commonInputProps}
-          />
-          <FormattedNumericInput
-            label="Aportes mensais"
-            id="monthlyContributions"
-            name="monthlyContributions"
-            value={inputs.monthlyContributions}
-            onChange={handleFormattedInputChange}
-            min={0}
-            icon={<span className="text-slate-400 dark:text-slate-500">R$</span>}
-            displayOptions={moneyDisplayOptions}
-            {...commonInputProps}
-          />
-          <div className="grid grid-cols-2 gap-2 items-end">
-            <Input 
-              label="Período da aplicação"
-              type="number" 
-              id="applicationPeriodValue"
-              name="applicationPeriodValue"
-              value={inputs.applicationPeriodValue === null ? '' : inputs.applicationPeriodValue.toString()}
-              onChange={handlePeriodValueChange}
-              min="1"
-              disabled={isLoading || isFetchingEconomicData} 
-            />
-            <Select
-              label=" " 
-              id="applicationPeriodUnit"
-              name="applicationPeriodUnit"
-              options={[
-                { value: 'months', label: 'meses' },
-                { value: 'years', label: 'anos' },
-              ]}
-              value={inputs.applicationPeriodUnit}
-              onChange={handleSelectChange}
-              className="mt-1" 
-              disabled={isLoading || isFetchingEconomicData} 
-            />
-          </div>
-        </div>
-
-        <hr className="my-6 border-t border-slate-200 dark:border-slate-700/60" />
-
-        <div>
-          <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-1">
-            <h3 className="text-lg font-semibold text-slate-700 dark:text-blue-400">Indicadores Econômicos (Projeção Anual)</h3>
-            {isFetchingEconomicData && <p className="text-xs text-blue-500 dark:text-blue-400 animate-pulse">Buscando dados atualizados...</p>}
-            {fetchedEcoData?.lastUpdated && !isFetchingEconomicData && (
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Dados com (*) preenchidos automaticamente em: {fetchedEcoData.lastUpdated}
-              </p>
-            )}
-          </div>
-           {economicDataFetchError && !isFetchingEconomicData && (
-              <p className="text-xs text-red-500 dark:text-red-400 mb-3">{economicDataFetchError}</p>
-           )}
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-6">
-            <FormattedNumericInput 
-                label={<>Selic Efetiva <AutoFetchedMarker isFetched={initialFetchedDataMarkers.selicRate} /> <InfoIcon title={getSelicTooltip()} /></>} 
-                id="selicRate" name="selicRate" value={inputs.selicRate} onChange={handleFormattedInputChange} icon={<span className="text-slate-400 dark:text-slate-500">%</span>} displayOptions={percentDisplayOptions} {...commonInputProps} />
-            <FormattedNumericInput 
-                label={<>CDI <AutoFetchedMarker isFetched={initialFetchedDataMarkers.cdiRate} /> <InfoIcon title={getCdiTooltip()} /></>} 
-                id="cdiRate" name="cdiRate" value={inputs.cdiRate} onChange={handleFormattedInputChange} icon={<span className="text-slate-400 dark:text-slate-500">%</span>} displayOptions={percentDisplayOptions} {...commonInputProps} />
-            <FormattedNumericInput 
-                label={<>IPCA <AutoFetchedMarker isFetched={ipcaDisplayConfig.isFetched} /> <InfoIcon title={ipcaDisplayConfig.tooltipText} /></>} 
-                id="ipcaRate" name="ipcaRate" value={inputs.ipcaRate} onChange={handleFormattedInputChange} icon={<span className="text-slate-400 dark:text-slate-500">%</span>} displayOptions={percentDisplayOptions} {...commonInputProps} />
-            <FormattedNumericInput 
-                label={<>TR (Mensal) <AutoFetchedMarker isFetched={initialFetchedDataMarkers.trRate} /> <InfoIcon title={getTrTooltip()} /></>} 
-                id="trRate" name="trRate" value={inputs.trRate} onChange={handleFormattedInputChange} icon={<span className="text-slate-400 dark:text-slate-500">%</span>} displayOptions={highPrecisionPercentDisplayOptions} min={0} {...commonInputProps}/>
-          </div>
-          <div className="mt-4 p-3 bg-slate-100 dark:bg-slate-700/50 rounded-lg shadow-inner">
-            <h4 className="text-sm font-medium text-slate-700 dark:text-blue-300 mb-2">
-                Rentabilidade Estimada da Poupança
-                <InfoIcon title={getPoupancaTooltip()} />
-            </h4>
-            <div className="flex flex-col sm:flex-row justify-around text-xs text-slate-700 dark:text-slate-200">
-                <span className="mb-1 sm:mb-0">
-                    Mensal Efetiva: <strong className="text-blue-600 dark:text-blue-400">{formatNumberForDisplay(poupancaCalculatedRates.monthly, {minimumFractionDigits: 4, maximumFractionDigits: 4})}%</strong>
-                </span>
-                <span>
-                    Anual Efetiva: <strong className="text-blue-600 dark:text-blue-400">{formatNumberForDisplay(poupancaCalculatedRates.annual, {minimumFractionDigits: 4, maximumFractionDigits: 4})}%</strong>
-                </span>
-            </div>
-          </div>
-        </div>
-        
-        <hr className="my-6 border-t border-slate-200 dark:border-slate-700/60" />
-
-        <div>
-          <h3 className="text-lg font-semibold text-slate-700 dark:text-blue-400 mb-4">Parâmetros das Aplicações (Taxas Anuais Brutas, salvo indicação)</h3>
-          <div className="space-y-6">
-            <div className="p-4 rounded-md border border-slate-200 dark:border-slate-700/50 bg-white/60 dark:bg-slate-700/40">
-              <h4 className="text-md font-medium text-slate-700 dark:text-blue-300 mb-3">Tesouro Direto</h4>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-6">
-                <FormattedNumericInput 
-                  label="Tesouro Prefixado (Juro Nominal)" 
-                  id="tesouroPrefixadoNominalRate" 
-                  name="tesouroPrefixadoNominalRate" 
-                  value={inputs.tesouroPrefixadoNominalRate} 
-                  onChange={handleFormattedInputChange} 
-                  icon={<span className="text-slate-400 dark:text-slate-500">%</span>} 
-                  displayOptions={percentDisplayOptions} 
-                  {...commonInputProps} 
-                />
-                <FormattedNumericInput 
-                  label={<>Tesouro IPCA+ (Juro Real) <InfoIcon title="Taxa real anual, acima da inflação (IPCA)." /></>} 
-                  id="tesouroIpcaRealRate" 
-                  name="tesouroIpcaRealRate" 
-                  value={inputs.tesouroIpcaRealRate} 
-                  onChange={handleFormattedInputChange} 
-                  icon={<span className="text-slate-400 dark:text-slate-500">%</span>} 
-                  displayOptions={percentDisplayOptions} 
-                  {...commonInputProps} 
-                />
-                <FormattedNumericInput 
-                  label={<>Taxa Custódia B3 (Tesouro Direto) <InfoIcon title="Taxa anual cobrada pela B3 sobre o valor dos títulos. Estimada aqui como um percentual sobre o valor bruto final acumulado, proporcional ao prazo." /></>} 
-                  id="tesouroCustodyFeeB3" 
-                  name="tesouroCustodyFeeB3" 
-                  value={inputs.tesouroCustodyFeeB3} 
-                  onChange={handleFormattedInputChange} 
-                  icon={<span className="text-slate-400 dark:text-slate-500">%</span>} 
-                  displayOptions={percentDisplayOptions} 
-                  min={0} max={10} 
-                  {...commonInputProps}
-                />
-              </div>
-            </div>
-
-            <div className="p-4 rounded-md border border-slate-200 dark:border-slate-700/50 bg-white/60 dark:bg-slate-700/40">
-              <h4 className="text-md font-medium text-slate-700 dark:text-blue-300 mb-3">Outras Aplicações Bancárias</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-6">
-                <FormattedNumericInput 
-                  label={<>Rent. CDB (% do CDI) <InfoIcon title="Percentual da taxa CDI que o CDB renderá anualmente (bruto)."/></>} 
-                  id="cdbRatePercentageOfCdi" 
-                  name="cdbRatePercentageOfCdi" 
-                  value={inputs.cdbRatePercentageOfCdi} 
-                  onChange={handleFormattedInputChange} 
-                  icon={<span className="text-slate-400 dark:text-slate-500">%</span>} 
-                  displayOptions={integerPercentDisplayOptions} 
-                  {...commonInputProps} 
-                />
-                <FormattedNumericInput 
-                  label={<>Rent. LCI/LCA (% do CDI) <InfoIcon title="Percentual da taxa CDI que a LCI/LCA renderá anualmente (isento de IR)."/></>} 
-                  id="lciLcaRatePercentageOfCdi" 
-                  name="lciLcaRatePercentageOfCdi" 
-                  value={inputs.lciLcaRatePercentageOfCdi} 
-                  onChange={handleFormattedInputChange} 
-                  icon={<span className="text-slate-400 dark:text-slate-500">%</span>} 
-                  displayOptions={integerPercentDisplayOptions} 
-                  {...commonInputProps} 
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        <p className="text-xs text-slate-500 dark:text-slate-400 text-center">
-          Esses são os parâmetros padrões utilizados na sua simulação. Você pode alterá-los e refazer os cálculos para uma simulação avançada. As taxas anuais são convertidas para mensais para o cálculo com aportes. O prazo para IR é calculado com base em dias corridos (365,25 dias/ano).
-        </p>
-
-        <Button
-          type="button"
-          onClick={handleCompare}
-          variant="primary"
-          size="lg"
-          className="w-full"
-          disabled={isLoading || isFetchingEconomicData}
-        >
-          {isLoading ? (
-            <>
-              <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              Calculando Comparativo...
-            </>
-          ) : isFetchingEconomicData ? (
-             <>
-              <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              Aguardando dados...
-            </>
-          ) : (
-            'Comparar Aplicações'
-          )}
-        </Button>
-
-        {isLoading && ( 
-            <div className="mt-6 flex justify-center items-center">
-                 <div className="flex flex-col items-center">
-                    <svg className="animate-spin h-10 w-10 text-blue-600 dark:text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    <p className="text-slate-500 dark:text-slate-400 mt-4">Analisando todas as aplicações...</p>
+    <div className="space-y-6">
+      <Card>
+        <Card.Header>
+          <Card.Title>Comparador Abrangente de Investimentos de Renda Fixa</Card.Title>
+        </Card.Header>
+        <Card.Content className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Coluna 1: Parâmetros Gerais e Econômicos */}
+            <div className="space-y-6">
+              <Card className="bg-slate-50 dark:bg-slate-800/50 p-4 shadow-inner">
+                <Card.Title className="text-md mb-3 text-blue-600 dark:text-blue-400">Parâmetros da Simulação</Card.Title>
+                <FormattedNumericInput id="initialInvestment" name="initialInvestment" label="Investimento Inicial (R$)" value={inputs.initialInvestment} onChange={handleFormattedInputChange} icon={<span className="text-slate-400 dark:text-slate-500">R$</span>} disabled={isLoading} />
+                <FormattedNumericInput id="monthlyContributions" name="monthlyContributions" label="Aportes Mensais (R$)" value={inputs.monthlyContributions} onChange={handleFormattedInputChange} icon={<span className="text-slate-400 dark:text-slate-500">R$</span>} className="mt-4" disabled={isLoading}/>
+                <div className="grid grid-cols-2 gap-4 mt-4 items-end">
+                  <Input id="applicationPeriodValue" name="applicationPeriodValue" label="Período" type="number" min="1" value={inputs.applicationPeriodValue?.toString() ?? ''} onChange={handlePeriodValueChange} disabled={isLoading}/>
+                  <Select id="applicationPeriodUnit" name="applicationPeriodUnit" label="Unidade" options={[{value: 'months', label: 'Meses'}, {value: 'years', label: 'Anos'}]} value={inputs.applicationPeriodUnit} onChange={handleSelectChange} disabled={isLoading}/>
                 </div>
-            </div>
-        )}
+              </Card>
+              
+              <Card className="bg-slate-50 dark:bg-slate-800/50 p-4 shadow-inner">
+                <Card.Title className="text-md mb-3 text-blue-600 dark:text-blue-400">Indicadores Econômicos Base</Card.Title>
+                 {isFetchingEconomicData && <p className="text-xs text-slate-500 dark:text-slate-400">Buscando indicadores mais recentes...</p>}
+                 {economicDataFetchError && !isFetchingEconomicData && <p className="text-xs text-red-500 dark:text-red-400">{economicDataFetchError}</p>}
 
-        {!isLoading && results && results.length > 0 && (
-          <div className="mt-6">
-            <h3 className="text-xl font-semibold text-center text-slate-700 dark:text-blue-300 mb-6">Resultados do Comparativo</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {results.map((res, index) => (
-                <Card key={res.name} className={`shadow-premium ${index === 0 ? 'border-2 border-green-500 dark:border-green-400' : ''}`}>
-                  <Card.Header className={index === 0 ? 'bg-green-50 dark:bg-green-900/30' : ''}>
-                    <Card.Title className="flex justify-between items-center">
-                      <span>{index + 1}. {res.name}</span>
-                      {index === 0 && <span className="text-xs bg-green-500 text-white px-2 py-0.5 rounded-full">MELHOR</span>}
-                    </Card.Title>
-                  </Card.Header>
-                  <Card.Content className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-slate-600 dark:text-slate-400">Valor Líquido Final:</span>
-                      <span className="font-bold text-lg text-primary dark:text-primary-light">{formatCurrency(res.netBalance)}</span>
-                    </div>
-                     <hr className="my-1 border-slate-200 dark:border-slate-700/50"/>
-                    <div className="flex justify-between">
-                      <span className="text-slate-600 dark:text-slate-400">Total Investido:</span>
-                      <span className="font-medium text-slate-800 dark:text-slate-200">{formatCurrency(res.totalInvested)}</span>
-                    </div>
-                     <div className="flex justify-between">
-                      <span className="text-slate-600 dark:text-slate-400" title="Juros totais após taxas operacionais (como custódia B3), antes do Imposto de Renda.">Juros Pós-Taxas Op. (pré-IR):</span>
-                      <span className="font-medium text-green-600 dark:text-green-500">{formatCurrency(res.totalInterestEarned)}</span>
-                    </div>
-                    {res.operationalFeesPaid !== undefined && res.operationalFeesPaid > 0 && ( 
-                        <div className="flex justify-between">
-                          <span className="text-slate-600 dark:text-slate-400">Taxas Operacionais Pagas:</span>
-                          <span className="font-medium text-orange-600 dark:text-orange-500">(-) {formatCurrency(res.operationalFeesPaid)}</span>
-                        </div>
-                    )}
-                    <div className="flex justify-between">
-                      <span className="text-slate-600 dark:text-slate-400" title="Saldo após juros e taxas operacionais (como custódia B3), antes do Imposto de Renda.">Valor Bruto (Pós-Taxas Op., pré-IR):</span>
-                      <span className="font-medium text-slate-800 dark:text-slate-200">{formatCurrency(res.finalGrossBalance)}</span>
-                    </div>
-                    {res.irAmount > 0 && (
-                      <>
-                        <div className="flex justify-between">
-                          <span className="text-slate-600 dark:text-slate-400">Alíquota IR Aplicada:</span>
-                          <span className="font-medium text-red-600 dark:text-red-500">{res.irRateAppliedPercent.toFixed(1)}%</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-600 dark:text-slate-400">IR Pago (Estimado):</span>
-                          <span className="font-medium text-red-600 dark:text-red-500">(-) {formatCurrency(res.irAmount)}</span>
-                        </div>
-                      </>
-                    )}
-                     <div className="pt-2 space-y-0.5">
-                        {res.effectiveAnnualRateUsedPercent !== undefined && (
-                            <p className="text-xs text-slate-500 dark:text-slate-400" 
-                               title={
-                                 (res.name.startsWith("LCI/LCA") || res.name.startsWith("Poupança")) ? "Taxa Anual Efetiva (isenta/líquida) usada na simulação." :
-                                 (res.name.startsWith("Tesouro")) ? "Taxa Anual Bruta base (pré-taxa B3 e pré-IR) usada para cálculo." :
-                                 "Taxa Anual Bruta base (pré-IR) usada para simulação."
-                                }>
-                                {
-                                 (res.name.startsWith("LCI/LCA") || res.name.startsWith("Poupança")) ? "TAE (efetiva):" :
-                                 (res.name.startsWith("Tesouro")) ? "TAE Bruta (base):" :
-                                 "TAE Bruta (base):"
-                                } {formatNumber(res.effectiveAnnualRateUsedPercent, 2)}%
-                            </p>
-                        )}
-                        {res.effectiveMonthlyRateUsedPercent !== undefined && (
-                            <p className="text-xs text-slate-500 dark:text-slate-400"
-                                title={
-                                  (res.name.startsWith("LCI/LCA") || res.name.startsWith("Poupança")) ? "Taxa Mensal Efetiva (isenta/líquida) usada na simulação." :
-                                  (res.name.startsWith("Tesouro")) ? "Taxa Mensal Bruta base (precisão total, pré-taxa B3 e pré-IR) usada para cálculo." :
-                                  "Taxa Mensal Bruta base (precisão total, pré-IR) usada para simulação."
-                                }>
-                                {
-                                 (res.name.startsWith("LCI/LCA") || res.name.startsWith("Poupança")) ? "TME (efetiva):" :
-                                 (res.name.startsWith("Tesouro")) ? "TME Bruta (base):" :
-                                 "TME Bruta (base):"
-                                } {formatNumber(res.effectiveMonthlyRateUsedPercent, 6)}%
-                            </p>
-                        )}
-                     </div>
-                  </Card.Content>
-                </Card>
-              ))}
+                <FormattedNumericInput id="selicRate" name="selicRate" label={<>Taxa Selic (% a.a.) <AutoFetchedMarker isFetched={initialFetchedDataMarkers.selicRate} tooltipText={`Selic Meta: ${formatNumberForDisplay(fetchedEcoData?.selicRate, {minimumFractionDigits:2, maximumFractionDigits:2})}% (Ref: ${fetchedEcoData?.selicReferenceDate || 'N/D'})`} /></>} value={inputs.selicRate} onChange={handleFormattedInputChange} icon={<span className="text-slate-400 dark:text-slate-500">%</span>} disabled={isLoading || isFetchingEconomicData}/>
+                <FormattedNumericInput id="cdiRate" name="cdiRate" label={<>Taxa CDI (% a.a.) <AutoFetchedMarker isFetched={initialFetchedDataMarkers.cdiRate} tooltipText={`CDI: ${formatNumberForDisplay(fetchedEcoData?.cdiRate, {minimumFractionDigits:2, maximumFractionDigits:2})}% (Anualizada, Ref: ${fetchedEcoData?.cdiReferenceDate || 'N/D'})`} /></>} value={inputs.cdiRate} onChange={handleFormattedInputChange} icon={<span className="text-slate-400 dark:text-slate-500">%</span>} className="mt-4" disabled={isLoading || isFetchingEconomicData}/>
+                <FormattedNumericInput id="ipcaRate" name="ipcaRate" label={<>Inflação IPCA (% a.a.) <AutoFetchedMarker isFetched={ipcaDisplayConfig.isFetched} tooltipText={ipcaDisplayConfig.tooltipText} /></>} value={inputs.ipcaRate} onChange={handleFormattedInputChange} icon={<span className="text-slate-400 dark:text-slate-500">%</span>} className="mt-4" disabled={isLoading || isFetchingEconomicData}/>
+                <FormattedNumericInput id="trRate" name="trRate" label={<>Taxa TR (% a.m.) <AutoFetchedMarker isFetched={initialFetchedDataMarkers.trRate} tooltipText={`TR: ${formatNumberForDisplay(fetchedEcoData?.trRate, {minimumFractionDigits:4, maximumFractionDigits:4})}% (Ref: ${fetchedEcoData?.trReferenceDate || 'N/D'})`} /></>} value={inputs.trRate} onChange={handleFormattedInputChange} icon={<span className="text-slate-400 dark:text-slate-500">%</span>} className="mt-4" disabled={isLoading || isFetchingEconomicData}/>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Poupança (regra {poupancaCalculatedRates.ruleApplied}): {formatNumberForDisplay(poupancaCalculatedRates.annual, {minimumFractionDigits:2, maximumFractionDigits:2})}% a.a.</p>
+              </Card>
             </div>
-             <p className="text-xs text-slate-500 dark:text-slate-400 text-center mt-6 pt-4 border-t border-slate-200 dark:border-slate-700/60">
-              <strong>Atenção:</strong> Os cálculos são simulações e podem não refletir a rentabilidade exata devido a arredondamentos, simplificações e volatilidade do mercado. Para Tesouro IPCA+, a inflação (IPCA) utilizada é a projetada. Para Tesouro Direto, a taxa de custódia da B3 é estimada como um percentual sobre o valor bruto final acumulado, proporcional ao prazo da aplicação. Consulte um profissional financeiro.
-            </p>
+
+            {/* Coluna 2: Tipos de Investimento */}
+            <div className="space-y-6">
+              <Card className="bg-slate-50 dark:bg-slate-800/50 p-4 shadow-inner">
+                <Card.Title className="text-md mb-3 text-blue-600 dark:text-blue-400">Tesouro Direto</Card.Title>
+                <FormattedNumericInput id="tesouroPrefixadoNominalRate" name="tesouroPrefixadoNominalRate" label="Tesouro Prefixado - Juro Nominal (% a.a.)" value={inputs.tesouroPrefixadoNominalRate} onChange={handleFormattedInputChange} icon={<span className="text-slate-400 dark:text-slate-500">%</span>} disabled={isLoading}/>
+                <FormattedNumericInput id="tesouroIpcaRealRate" name="tesouroIpcaRealRate" label="Tesouro IPCA+ - Juro Real (% a.a.)" value={inputs.tesouroIpcaRealRate} onChange={handleFormattedInputChange} icon={<span className="text-slate-400 dark:text-slate-500">%</span>} className="mt-4" disabled={isLoading}/>
+                <FormattedNumericInput id="tesouroCustodyFeeB3" name="tesouroCustodyFeeB3" label="Taxa de Custódia B3 Tesouro (% a.a.)" value={inputs.tesouroCustodyFeeB3} onChange={handleFormattedInputChange} icon={<span className="text-slate-400 dark:text-slate-500">%</span>} className="mt-4" disabled={isLoading}/>
+              </Card>
+
+              <Card className="bg-slate-50 dark:bg-slate-800/50 p-4 shadow-inner">
+                <Card.Title className="text-md mb-3 text-blue-600 dark:text-blue-400">Outros Investimentos</Card.Title>
+                <FormattedNumericInput id="cdbRatePercentageOfCdi" name="cdbRatePercentageOfCdi" label="CDB - Rentabilidade (% do CDI)" value={inputs.cdbRatePercentageOfCdi} onChange={handleFormattedInputChange} icon={<span className="text-slate-400 dark:text-slate-500">%</span>} disabled={isLoading}/>
+                <FormattedNumericInput id="lciLcaRatePercentageOfCdi" name="lciLcaRatePercentageOfCdi" label="LCI/LCA - Rentabilidade (% do CDI)" value={inputs.lciLcaRatePercentageOfCdi} onChange={handleFormattedInputChange} icon={<span className="text-slate-400 dark:text-slate-500">%</span>} className="mt-4" disabled={isLoading}/>
+              </Card>
+            </div>
           </div>
-        )}
-      </Card.Content>
-    </Card>
+          <Button onClick={handleCompare} variant="primary" size="lg" className="w-full mt-6" disabled={isLoading || isFetchingEconomicData}>
+            {isLoading || isFetchingEconomicData ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                {isFetchingEconomicData ? 'Buscando dados...' : 'Comparando...'}
+              </>
+            ) : 'Comparar Investimentos'}
+          </Button>
+        </Card.Content>
+      </Card>
+
+      {isLoading && (
+        <Card>
+          <Card.Content className="py-10 flex justify-center items-center">
+            <div className="flex flex-col items-center">
+              <svg className="animate-spin h-10 w-10 text-blue-600 dark:text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <p className="text-center text-slate-500 dark:text-slate-400 mt-4">Calculando e comparando...</p>
+            </div>
+          </Card.Content>
+        </Card>
+      )}
+
+      {!isLoading && results && results.length > 0 && (
+        <Card>
+          <Card.Header>
+            <Card.Title>Resultados da Comparação</Card.Title>
+          </Card.Header>
+          <Card.Content className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700">
+              <thead className="bg-gray-50 dark:bg-slate-700/50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Investimento</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Saldo Líquido Final</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Juros Totais (Líq.)</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total Investido</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">IR Pago</th>
+                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider hidden sm:table-cell">Taxa de IR</th>
+                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider hidden sm:table-cell">Taxas Oper.</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white dark:bg-slate-800/75 divide-y divide-gray-200 dark:divide-slate-700">
+                {results.map((res, index) => (
+                  <tr key={res.name} className={`hover:bg-gray-50/50 dark:hover:bg-gray-700/80 transition-colors ${index === 0 ? 'bg-green-50 dark:bg-green-800/30' : ''}`}>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{res.name}</td>
+                    <td className={`px-4 py-3 whitespace-nowrap text-sm font-semibold ${index === 0 ? 'text-green-600 dark:text-green-400' : 'text-gray-900 dark:text-white'}`}>{formatCurrency(res.netBalance)}</td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">{formatCurrency(res.netBalance - res.totalInvested)}</td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">{formatCurrency(res.totalInvested)}</td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">{formatCurrency(res.irAmount)}</td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300 hidden sm:table-cell">{formatNumberForDisplay(res.irRateAppliedPercent, {minimumFractionDigits:1, maximumFractionDigits:1})}%</td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300 hidden sm:table-cell">{formatCurrency(res.operationalFeesPaid || 0)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+             <p className="text-xs text-slate-500 dark:text-slate-400 mt-3">
+              Observações: "Juros Totais (Líq.)" = Saldo Líquido Final - Total Investido. Taxas de custódia e outras taxas operacionais foram deduzidas antes do IR, quando aplicável. Os resultados estão ordenados pelo maior Saldo Líquido Final.
+            </p>
+          </Card.Content>
+        </Card>
+      )}
+
+      {!isLoading && (!results || results.length === 0) && (
+        <Card>
+          <Card.Content>
+            <p className="text-center text-slate-500 dark:text-slate-400 py-10">
+              Preencha os campos e clique em "Comparar Investimentos" para ver os resultados.
+            </p>
+          </Card.Content>
+        </Card>
+      )}
+    </div>
   );
 };
-
 export default ComprehensiveComparator;
+

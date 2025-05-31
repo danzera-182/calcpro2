@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { MonthlyProjectionPoint, InputFormData } from '../types'; // Added InputFormData
 import { formatCurrency } from '../utils/formatters';

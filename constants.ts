@@ -1,3 +1,4 @@
+
 import { InputFormData, ComprehensiveInputs, AvailableIndicatorForTerminal } from './types';
 
 export const DEFAULT_INPUT_VALUES: InputFormData = {

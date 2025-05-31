@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { ProjectionPoint, InputFormData } from '../types'; // Added InputFormData
 import { formatCurrency } from '../utils/formatters';

@@ -1,3 +1,4 @@
+
 import { ProjectionPoint, MonthlyProjectionPoint, InputFormData, SpecificContribution } from '../types';
 
 interface CalculationParams extends InputFormData {
