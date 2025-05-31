@@ -1,5 +1,5 @@
 // utils/economicIndicatorsAPI.ts
-import { HistoricalDataPoint, DynamicHistoricalAverage, BtcPriceInfo, UsdBrlRateInfo, BitcoinPriceHistoryPoint, UsdtPriceInfo } from '../types'; 
+import { HistoricalDataPoint, DynamicHistoricalAverage, BtcPriceInfo, UsdBrlRateInfo, BitcoinPriceHistoryPoint, UsdtPriceInfo, FinnhubNewsItem } from '../types'; 
 
 export interface FetchedEconomicIndicators {
   selicRate?: number;
@@ -754,5 +754,60 @@ export async function fetchAndCalculateHistoricalAverage(
         error: `Falha ao buscar/calcular dados históricos (SGS ${sgsCode}).`, 
         sourceSgsCode: sgsCode 
     };
+  }
+}
+
+/**
+ * Fetches general market news from Finnhub API.
+ * @param category The news category (e.g., 'general', 'forex', 'crypto', 'merger').
+ * @param count The number of news items to return. Finnhub API itself doesn't have a count parameter for /news,
+ *              so we fetch recent ones and then slice. `minId=0` is used to get the latest news.
+ * @returns Array of FinnhubNewsItem.
+ * @throws Error if API request fails or data is invalid.
+ */
+export async function fetchFinnhubNews(
+  category: string = 'general',
+  count: number = 20 // Number of items to return after fetching
+): Promise<FinnhubNewsItem[]> {
+  // IMPORTANT: The API key should be handled securely, ideally via a backend proxy.
+  // For this frontend-only example, we're assuming it's available as an environment variable.
+  // Ensure process.env.FINNHUB_API_KEY is set in your environment.
+  const apiKey = process.env.FINNHUB_API_KEY;
+
+  if (!apiKey) {
+    console.error('Finnhub API key (FINNHUB_API_KEY) is not defined in environment variables.');
+    throw new Error('Chave da API Finnhub não configurada.');
+  }
+
+  const apiUrl = `https://finnhub.io/api/v1/news?category=${category}&minId=0&token=${apiKey}`;
+
+  try {
+    const response = await fetch(apiUrl);
+    if (!response.ok) {
+      const errorText = await response.text();
+      let errorMessage = `Falha na API Finnhub (${response.status}) ao buscar notícias.`;
+      if (response.status === 401) {
+        errorMessage = "Erro de autenticação com a API Finnhub. Verifique sua chave da API.";
+      } else if (response.status === 429) {
+        errorMessage = "Limite de requisições da API Finnhub atingido. Tente novamente mais tarde.";
+      }
+      console.error(`Finnhub News API request failed: ${response.status} - ${errorText}`);
+      throw new Error(errorMessage);
+    }
+    const data: FinnhubNewsItem[] = await response.json();
+
+    if (Array.isArray(data)) {
+      // Filter out items that might not have essential fields like headline or url
+      const validNews = data.filter(item => item.headline && item.url && item.datetime && item.source);
+      return validNews.slice(0, count); // Return the requested number of items
+    }
+    console.error('Invalid news data format from Finnhub:', data);
+    throw new Error('Formato de dados de notícias inválido da API Finnhub.');
+  } catch (e: any) {
+    console.error('Error fetching Finnhub news:', e.message, e);
+    if (e.message.includes('Failed to fetch') || e.message.includes('NetworkError')) {
+        throw new Error('Erro de rede ao buscar notícias. Verifique sua conexão.');
+    }
+    throw e; // Re-throw original error if it's already specific (like API key error)
   }
 }
