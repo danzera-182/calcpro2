@@ -1,19 +1,23 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { InputFormData, ScenarioData, AppView, BtcPriceInfo } from './types';
+import { InputFormData, ScenarioData, AppView, BtcPriceInfo, UsdtPriceInfo } from './types';
 import { DEFAULT_INPUT_VALUES } from './constants';
 import { calculateProjection } from './utils/calculations';
 import InputForm from './components/InputForm';
-import ResultsDisplay from './components/ResultsDisplay.tsx'; 
+import ResultsDisplay from './components/ResultsDisplay'; 
 import ThemeToggle from './components/ThemeToggle';
 import { Card } from './components/ui/Card';
 import Button from './components/ui/Button';
 import FixedIncomeComparator from './components/FixedIncomeComparator';
 import ComprehensiveComparator from './components/ComprehensiveComparator'; 
 import BitcoinRateDisplay from './components/BitcoinRateDisplay'; 
+import UsdtRateDisplay from './components/UsdtRateDisplay';
 import MacroEconomicPanel from './components/MacroEconomicPanel'; 
-import TerminalView from './components/TerminalView'; // Added
-import { fetchLatestBitcoinPrice } from './utils/economicIndicatorsAPI'; 
+import TerminalView from './components/TerminalView';
+import BitcoinDetailedChart from './components/BitcoinDetailedChart';
+import UsdtDetailedChart from './components/UsdtDetailedChart'; // Added
+import { fetchLatestBitcoinPrice, fetchLatestUsdtPrice } from './utils/economicIndicatorsAPI';
+import { formatCurrency, formatNumberForDisplay, formatNumber } from './utils/formatters';
 
 const App: React.FC = () => {
   const [inputValues, setInputValues] = useState<InputFormData>(DEFAULT_INPUT_VALUES);
@@ -25,15 +29,18 @@ const App: React.FC = () => {
   const [isLoadingBitcoinPrice, setIsLoadingBitcoinPrice] = useState<boolean>(false);
   const [bitcoinPriceError, setBitcoinPriceError] = useState<string | null>(null);
 
+  const [usdtPriceInfo, setUsdtPriceInfo] = useState<UsdtPriceInfo | null>(null);
+  const [isLoadingUsdtPrice, setIsLoadingUsdtPrice] = useState<boolean>(false);
+  const [usdtPriceError, setUsdtPriceError] = useState<string | null>(null);
+
+
   const handleInputChange = useCallback((newInputValues: Partial<InputFormData>) => {
     setInputValues(prev => {
       const updatedValues = { ...prev, ...newInputValues };
-      // If advanced sim is enabled & retirement mode is on, derive investmentPeriodYears
       if (updatedValues.enableAdvancedSimulation && updatedValues.advancedSimModeRetirement && updatedValues.currentAge && updatedValues.targetAge) {
         if (updatedValues.targetAge > updatedValues.currentAge) {
           updatedValues.investmentPeriodYears = updatedValues.targetAge - updatedValues.currentAge;
         } else {
-          // Keep previous investmentPeriodYears or a default if targetAge is not > currentAge
            updatedValues.investmentPeriodYears = prev.investmentPeriodYears; 
         }
       }
@@ -76,32 +83,73 @@ const App: React.FC = () => {
   }, [inputValues]);
 
   useEffect(() => {
-    if (activeView === 'selector') {
+    // Fetch detailed data if on the specific chart view and data isn't fully loaded
+    // For selector view, fetch only if basic data isn't available or errored.
+    const shouldFetchBtcDetailed = activeView === 'bitcoinChartDetail' && (!bitcoinPriceInfo || !bitcoinPriceInfo.description);
+    const shouldFetchUsdtDetailed = activeView === 'usdtChartDetail' && (!usdtPriceInfo || !usdtPriceInfo.description);
+
+    const shouldFetchBtcSelector = activeView === 'selector' && !bitcoinPriceInfo && !isLoadingBitcoinPrice && !bitcoinPriceError;
+    const shouldFetchUsdtSelector = activeView === 'selector' && !usdtPriceInfo && !isLoadingUsdtPrice && !usdtPriceError;
+    
+    const needsBtcFetch = shouldFetchBtcDetailed || shouldFetchBtcSelector;
+    const needsUsdtFetch = shouldFetchUsdtDetailed || shouldFetchUsdtSelector;
+
+
+    if (needsBtcFetch || needsUsdtFetch) {
       const loadFinancialData = async () => {
-        // Fetch Bitcoin Price
-        if (!bitcoinPriceInfo && !isLoadingBitcoinPrice && !bitcoinPriceError) {
-          setIsLoadingBitcoinPrice(true);
-          setBitcoinPriceError(null);
-          try {
-            const btcData = await fetchLatestBitcoinPrice();
-            if (btcData) {
-              setBitcoinPriceInfo(btcData);
+        if (needsBtcFetch) {
+            setIsLoadingBitcoinPrice(true);
+            setBitcoinPriceError(null);
+        }
+        if (needsUsdtFetch) {
+            setIsLoadingUsdtPrice(true);
+            setUsdtPriceError(null);
+        }
+
+        try {
+          const promises = [];
+          if (needsBtcFetch) {
+            promises.push(fetchLatestBitcoinPrice());
+          } else {
+            promises.push(Promise.resolve(bitcoinPriceInfo)); 
+          }
+          if (needsUsdtFetch) {
+            promises.push(fetchLatestUsdtPrice());
+          } else {
+            promises.push(Promise.resolve(usdtPriceInfo)); 
+          }
+
+          const [btcResult, usdtResult] = await Promise.all(promises);
+
+          if (needsBtcFetch) {
+            if (btcResult) { 
+              setBitcoinPriceInfo(btcResult as BtcPriceInfo);
             } else {
               setBitcoinPriceError("Cotação do Bitcoin não disponível.");
             }
-          } catch (e) {
-            console.error("Error fetching Bitcoin price:", e);
-            setBitcoinPriceError("Falha ao buscar cotação do Bitcoin.");
-          } finally {
-            setIsLoadingBitcoinPrice(false);
           }
+          if (needsUsdtFetch) {
+            if (usdtResult) {
+              setUsdtPriceInfo(usdtResult as UsdtPriceInfo);
+            } else {
+              setUsdtPriceError("Cotação do USDT não disponível.");
+            }
+          }
+        } catch (e: any) {
+          console.error("Error in App.tsx fetching financial data:", e.message, e);
+          if (needsBtcFetch && !bitcoinPriceInfo) setBitcoinPriceError("Falha ao buscar cotação do Bitcoin.");
+          if (needsUsdtFetch && !usdtPriceInfo) setUsdtPriceError("Falha ao buscar cotação do USDT.");
+        } finally {
+          if (needsBtcFetch) setIsLoadingBitcoinPrice(false);
+          if (needsUsdtFetch) setIsLoadingUsdtPrice(false);
         }
       };
       loadFinancialData();
     }
-  }, [activeView, bitcoinPriceInfo, isLoadingBitcoinPrice, bitcoinPriceError]);
+  }, [activeView, bitcoinPriceInfo, isLoadingBitcoinPrice, bitcoinPriceError, usdtPriceInfo, isLoadingUsdtPrice, usdtPriceError]);
 
-  const getSubtitle = () => {
+
+  const getSubtitle = () => { 
     switch (activeView) {
       case 'compoundInterest':
         return "Simule o futuro dos seus investimentos com projeções detalhadas e simulações avançadas.";
@@ -113,27 +161,53 @@ const App: React.FC = () => {
         return "Acompanhe os principais indicadores macroeconômicos do Brasil.";
       case 'macroEconomicTerminal':
         return "Analise e compare indicadores macroeconômicos em um terminal gráfico interativo.";
+      case 'bitcoinChartDetail':
+        return "Análise detalhada da cotação e informações do Bitcoin.";
+      case 'usdtChartDetail':
+        return "Análise detalhada da cotação e informações do USDT (Tether).";
       case 'selector':
       default:
         return "Suas ferramentas financeiras em um só lugar. Escolha uma opção abaixo para começar.";
     }
   };
+  
+  const formatUnixTimestampForDisplay = (unixTimestamp?: number): string => {
+    if (!unixTimestamp) return 'N/D';
+    try {
+      const date = new Date(unixTimestamp * 1000);
+      if (isNaN(date.getTime())) return "Data inválida";
+      return new Intl.DateTimeFormat('pt-BR', {
+        day: '2-digit', month: '2-digit', year: 'numeric', 
+        hour: '2-digit', minute: '2-digit', second: '2-digit'
+      }).format(date);
+    } catch (e) {
+      return "Horário indisponível";
+    }
+  };
+
 
   const renderContent = () => {
     switch (activeView) {
       case 'selector':
         return (
           <>
-            <div className="mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
               <BitcoinRateDisplay
                 priceInfo={bitcoinPriceInfo}
                 isLoading={isLoadingBitcoinPrice}
                 error={bitcoinPriceError}
+                onClick={() => setActiveView('bitcoinChartDetail')}
+              />
+              <UsdtRateDisplay
+                priceInfo={usdtPriceInfo}
+                isLoading={isLoadingUsdtPrice}
+                error={usdtPriceError}
+                onClick={() => setActiveView('usdtChartDetail')}
               />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6 sm:gap-8">
               <Card 
-                className="cursor-pointer hover:shadow-2xl transition-shadow duration-200 ease-in-out transform hover:-translate-y-1"
+                className="cursor-pointer hover:shadow-premium-hover transition-shadow duration-200 ease-in-out transform hover:-translate-y-1"
                 onClick={() => setActiveView('compoundInterest')}
                 aria-label="Acessar Projeção de Patrimônio"
               >
@@ -141,14 +215,14 @@ const App: React.FC = () => {
                   <Card.Title>📈 Projeção de Patrimônio e Aposentadoria</Card.Title>
                 </Card.Header>
                 <Card.Content>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
                     Simule o crescimento dos seus investimentos com aportes mensais e taxa anual, visualize projeções detalhadas e explore cenários avançados de aposentadoria.
                   </p>
                   <Button variant="primary" className="mt-4 w-full" tabIndex={-1}>Acessar Calculadora</Button>
                 </Card.Content>
               </Card>
               <Card 
-                className="cursor-pointer hover:shadow-2xl transition-shadow duration-200 ease-in-out transform hover:-translate-y-1"
+                className="cursor-pointer hover:shadow-premium-hover transition-shadow duration-200 ease-in-out transform hover:-translate-y-1"
                 onClick={() => setActiveView('fixedIncomeComparator')}
                 aria-label="Acessar Simulador Isento vs. Tributado"
               >
@@ -156,14 +230,14 @@ const App: React.FC = () => {
                   <Card.Title>⚖️ Simulador Isento vs. Tributado</Card.Title>
                 </Card.Header>
                 <Card.Content>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
                     Descubra a rentabilidade líquida de investimentos pré-fixados ou pós-fixados (% do CDI) após o Imposto de Renda e compare com aplicações isentas.
                   </p>
                   <Button variant="primary" className="mt-4 w-full" tabIndex={-1}>Acessar Simulador</Button>
                 </Card.Content>
               </Card>
               <Card 
-                className="cursor-pointer hover:shadow-2xl transition-shadow duration-200 ease-in-out transform hover:-translate-y-1"
+                className="cursor-pointer hover:shadow-premium-hover transition-shadow duration-200 ease-in-out transform hover:-translate-y-1"
                 onClick={() => setActiveView('comprehensiveComparator')}
                 aria-label="Acessar Comparador Investimentos Renda-Fixa"
               >
@@ -171,14 +245,14 @@ const App: React.FC = () => {
                   <Card.Title>📊 Comparador Investimentos Renda-Fixa</Card.Title>
                 </Card.Header>
                 <Card.Content>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
                     Analise e compare diversas opções de investimento de renda fixa com parâmetros detalhados para identificar qual rende mais.
                   </p>
                   <Button variant="primary" className="mt-4 w-full" tabIndex={-1}>Acessar Comparador</Button>
                 </Card.Content>
               </Card>
               <Card 
-                className="cursor-pointer hover:shadow-2xl transition-shadow duration-200 ease-in-out transform hover:-translate-y-1"
+                className="cursor-pointer hover:shadow-premium-hover transition-shadow duration-200 ease-in-out transform hover:-translate-y-1"
                 onClick={() => setActiveView('macroEconomicPanel')}
                 aria-label="Acessar Painel Macroeconômico"
               >
@@ -186,7 +260,7 @@ const App: React.FC = () => {
                   <Card.Title>🌐 Painel Macroeconômico</Card.Title>
                 </Card.Header>
                 <Card.Content>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
                     Acompanhe os principais indicadores econômicos do Brasil, como Selic, CDI, IPCA, TR e Dólar.
                   </p>
                   <Button variant="primary" className="mt-4 w-full" tabIndex={-1}>Acessar Painel</Button>
@@ -226,7 +300,7 @@ const App: React.FC = () => {
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
-                        <p className="text-center text-gray-500 dark:text-gray-400 mt-4">Calculando projeção...</p>
+                        <p className="text-center text-slate-500 dark:text-slate-400 mt-4">Calculando projeção...</p>
                        </div>
                     </Card.Content>
                   </Card>
@@ -241,7 +315,7 @@ const App: React.FC = () => {
                   <Card>
                     <Card.Header><Card.Title>Resultados da Projeção</Card.Title></Card.Header>
                     <Card.Content>
-                      <p className="text-center text-gray-500 dark:text-gray-400 py-10">
+                      <p className="text-center text-slate-500 dark:text-slate-400 py-10">
                         Ajuste os parâmetros e clique em "Simular" para visualizar a projeção.
                       </p>
                     </Card.Content>
@@ -280,7 +354,7 @@ const App: React.FC = () => {
             <MacroEconomicPanel setActiveView={setActiveView} /> 
           </>
         );
-       case 'macroEconomicTerminal': // Added
+       case 'macroEconomicTerminal': 
         return (
           <>
             <Button onClick={() => setActiveView('macroEconomicPanel')} variant="secondary" size="md" className="mb-6" aria-label="Voltar para Painel Macroeconômico">
@@ -289,31 +363,286 @@ const App: React.FC = () => {
             <TerminalView />
           </>
         );
+      case 'bitcoinChartDetail':
+        if (isLoadingBitcoinPrice && !bitcoinPriceInfo?.description) { 
+          return (
+            <>
+              <Button onClick={() => setActiveView('selector')} variant="secondary" size="md" className="mb-6" aria-label="Voltar para seleção de ferramentas">
+                &larr; Voltar para seleção de ferramentas
+              </Button>
+              <Card>
+                <Card.Header><Card.Title>Bitcoin (BTC) - Detalhes</Card.Title></Card.Header>
+                <Card.Content className="py-10 flex justify-center items-center">
+                  <div className="flex flex-col items-center">
+                    <svg className="animate-spin h-10 w-10 text-orange-500 dark:text-orange-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <p className="text-center text-slate-500 dark:text-slate-400 mt-4">Carregando dados do Bitcoin...</p>
+                  </div>
+                </Card.Content>
+              </Card>
+            </>
+          );
+        }
+        if (bitcoinPriceError && !bitcoinPriceInfo?.description) { 
+          return (
+            <>
+              <Button onClick={() => setActiveView('selector')} variant="secondary" size="md" className="mb-6" aria-label="Voltar para seleção de ferramentas">
+                &larr; Voltar para seleção de ferramentas
+              </Button>
+              <Card>
+                <Card.Header><Card.Title>Bitcoin (BTC) - Erro</Card.Title></Card.Header>
+                <Card.Content>
+                  <p className="text-center text-red-500 dark:text-red-400 py-10">
+                    {bitcoinPriceError}
+                  </p>
+                </Card.Content>
+              </Card>
+            </>
+          );
+        }
+        
+        return (
+          <>
+            <Button onClick={() => setActiveView('selector')} variant="secondary" size="md" className="mb-6" aria-label="Voltar para seleção de ferramentas">
+              &larr; Voltar para seleção de ferramentas
+            </Button>
+            <Card>
+              <Card.Header>
+                <div className="flex items-center space-x-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" className="w-8 h-8 text-orange-500">
+                        <defs><linearGradient id="logosBitcoin0" x1="49.973%" x2="49.973%" y1="-.024%" y2="99.99%"><stop offset="0%" stopColor="#F9AA4B"/><stop offset="100%" stopColor="#F7931A"/></linearGradient></defs>
+                        <path fill="url(#logosBitcoin0)" d="M252.171 158.954c-17.102 68.608-86.613 110.314-155.123 93.211c-68.61-17.102-110.316-86.61-93.213-155.119C20.937 28.438 90.347-13.268 158.957 3.835c68.51 17.002 110.317 86.51 93.214 155.119Z"/>
+                        <path fill="#FFF" d="M188.945 112.05c2.5-17-10.4-26.2-28.2-32.3l5.8-23.1l-14-3.5l-5.6 22.5c-3.7-.9-7.5-1.8-11.3-2.6l5.6-22.6l-14-3.5l-5.7 23c-3.1-.7-6.1-1.4-9-2.1v-.1l-19.4-4.8l-3.7 15s10.4 2.4 10.2 2.5c5.7 1.4 6.7 5.2 6.5 8.2l-6.6 26.3c.4.1.9.2 1.5 .5c-.5-.1-1-.2-1.5-.4l-9.2 36.8c-.7 1.7-2.5 4.3-6.4 3.3c.1.2-10.2-2.5-10.2-2.5l-7 16.1l18.3 4.6c3.4.9 6.7 1.7 10 2.6l-5.8 23.3l14 3.5l5.8-23.1c3.8 1 7.6 2 11.2 2.9l-5.7 23l14 3.5l5.8-23.3c24 4.5 42 2.7 49.5-19c6.1-17.4-.3-27.5-12.9-34.1c9.3-2.1 16.2-8.2 18-20.6Zm-32.1 45c-4.3 17.4-33.7 8-43.2 5.6l7.7-30.9c9.5 2.4 40.1 7.1 35.5 25.3Zm4.4-45.3c-4 15.9-28.4 7.8-36.3 5.8l7-28c7.9 2 33.4 5.7 29.3 22.2Z"/>
+                    </svg>
+                    <Card.Title>Bitcoin (BTC) - Detalhes</Card.Title>
+                </div>
+              </Card.Header>
+              <Card.Content className="space-y-6">
+                <div className="p-4 bg-slate-100 dark:bg-slate-800 rounded-lg shadow-inner">
+                  <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200 mb-2">Gráfico Interativo de Preço (USD)</h3>
+                  <BitcoinDetailedChart coinId="bitcoin" vsCurrency="usd" />
+                </div>
+                
+                {isLoadingBitcoinPrice && bitcoinPriceInfo && !bitcoinPriceInfo.description && (
+                    <div className="text-center text-xs text-slate-500 dark:text-slate-400">Atualizando dados detalhados...</div>
+                )}
+                {bitcoinPriceError && bitcoinPriceInfo && !bitcoinPriceInfo.description &&(
+                    <div className="text-center text-xs text-red-500 dark:text-red-400">Erro ao atualizar dados. Exibindo cotação básica.</div>
+                )}
+                {(!bitcoinPriceInfo && !isLoadingBitcoinPrice && !bitcoinPriceError) && (
+                     <p className="text-center text-slate-500 dark:text-slate-400 py-5">Nenhum dado de cotação do Bitcoin disponível.</p>
+                )}
+                {bitcoinPriceInfo && (
+                    <div className="p-4 bg-slate-100 dark:bg-slate-800 rounded-lg shadow-inner">
+                        <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200 mb-2">Cotação Atual</h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                            <p><strong className="text-slate-600 dark:text-slate-300">Preço (USD):</strong> {formatCurrency(bitcoinPriceInfo.usd, 'USD')}</p>
+                            <p><strong className="text-slate-600 dark:text-slate-300">Preço (BRL):</strong> {formatCurrency(bitcoinPriceInfo.brl)}</p>
+                        </div>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                            Última atualização: {formatUnixTimestampForDisplay(bitcoinPriceInfo.lastUpdatedAt)} (CoinGecko)
+                        </p>
+                    </div>
+                )}
+
+                {bitcoinPriceInfo && (bitcoinPriceInfo.marketCapUsd || bitcoinPriceInfo.marketCapBrl || bitcoinPriceInfo.totalSupply || bitcoinPriceInfo.circulatingSupply) && (
+                  <div className="p-4 bg-slate-100 dark:bg-slate-800 rounded-lg shadow-inner">
+                    <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200 mb-2">Dados de Mercado</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                      {bitcoinPriceInfo.marketCapUsd && <p><strong className="text-slate-600 dark:text-slate-300">Capitalização (USD):</strong> {formatCurrency(bitcoinPriceInfo.marketCapUsd, 'USD')}</p>}
+                      {bitcoinPriceInfo.marketCapBrl && <p><strong className="text-slate-600 dark:text-slate-300">Capitalização (BRL):</strong> {formatCurrency(bitcoinPriceInfo.marketCapBrl)}</p>}
+                      {bitcoinPriceInfo.totalSupply && <p><strong className="text-slate-600 dark:text-slate-300">Fornecimento Total:</strong> {formatNumber(bitcoinPriceInfo.totalSupply, 0)} BTC</p>}
+                      {bitcoinPriceInfo.circulatingSupply && <p><strong className="text-slate-600 dark:text-slate-300">Fornecimento Circulante:</strong> {formatNumber(bitcoinPriceInfo.circulatingSupply, 0)} BTC</p>}
+                    </div>
+                  </div>
+                )}
+
+                {bitcoinPriceInfo && bitcoinPriceInfo.description && (
+                  <div className="p-4 bg-slate-100 dark:bg-slate-800 rounded-lg shadow-inner">
+                    <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200 mb-2">Sobre o Bitcoin</h3>
+                    <div 
+                      className="text-sm text-slate-600 dark:text-slate-300 prose prose-sm dark:prose-invert max-w-none leading-relaxed"
+                      dangerouslySetInnerHTML={{ __html: bitcoinPriceInfo.description }} 
+                    />
+                  </div>
+                )}
+              </Card.Content>
+            </Card>
+          </>
+        );
+      case 'usdtChartDetail':
+        if (isLoadingUsdtPrice && !usdtPriceInfo?.description) {
+          return (
+            <>
+              <Button onClick={() => setActiveView('selector')} variant="secondary" size="md" className="mb-6" aria-label="Voltar para seleção de ferramentas">
+                &larr; Voltar para seleção de ferramentas
+              </Button>
+              <Card>
+                <Card.Header>
+                    <div className="flex items-center space-x-3">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" className="w-8 h-8 text-green-500">
+                            <g fillRule="evenodd"><circle cx="16" cy="16" r="16" fill="#26A17B"/><path fill="#FFF" d="M17.922 17.383v-.002c-.11.008-.677.042-1.942.042c-1.01 0-1.721-.03-1.971-.042v.003c-3.888-.171-6.79-.848-6.79-1.658c0-.809 2.902-1.486 6.79-1.66v2.644c.254.018.982.061 1.988.061c1.207 0 1.812-.05 1.925-.06v-2.643c3.88.173 6.775.85 6.775 1.658c0 .81-2.895 1.485-6.775 1.657m0-3.59v-2.366h5.414V7.819H8.595v3.608h5.414v2.365c-4.4.202-7.709 1.074-7.709 2.118c0 1.044 3.309 1.915 7.709 2.118v7.582h3.913v-7.584c4.393-.202 7.694-1.073 7.694-2.116c0-1.043-3.301-1.914-7.694-2.117"/></g>
+                        </svg>
+                        <Card.Title>USDT (Tether) - Detalhes</Card.Title>
+                    </div>
+                </Card.Header>
+                <Card.Content className="py-10 flex justify-center items-center">
+                  <div className="flex flex-col items-center">
+                    <svg className="animate-spin h-10 w-10 text-green-500 dark:text-green-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <p className="text-center text-slate-500 dark:text-slate-400 mt-4">Carregando dados do USDT...</p>
+                  </div>
+                </Card.Content>
+              </Card>
+            </>
+          );
+        }
+        if (usdtPriceError && !usdtPriceInfo?.description) {
+          return (
+            <>
+              <Button onClick={() => setActiveView('selector')} variant="secondary" size="md" className="mb-6" aria-label="Voltar para seleção de ferramentas">
+                &larr; Voltar para seleção de ferramentas
+              </Button>
+              <Card>
+                 <Card.Header>
+                    <div className="flex items-center space-x-3">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" className="w-8 h-8 text-green-500">
+                           <g fillRule="evenodd"><circle cx="16" cy="16" r="16" fill="#26A17B"/><path fill="#FFF" d="M17.922 17.383v-.002c-.11.008-.677.042-1.942.042c-1.01 0-1.721-.03-1.971-.042v.003c-3.888-.171-6.79-.848-6.79-1.658c0-.809 2.902-1.486 6.79-1.66v2.644c.254.018.982.061 1.988.061c1.207 0 1.812-.05 1.925-.06v-2.643c3.88.173 6.775.85 6.775 1.658c0 .81-2.895 1.485-6.775 1.657m0-3.59v-2.366h5.414V7.819H8.595v3.608h5.414v2.365c-4.4.202-7.709 1.074-7.709 2.118c0 1.044 3.309 1.915 7.709 2.118v7.582h3.913v-7.584c4.393-.202 7.694-1.073 7.694-2.116c0-1.043-3.301-1.914-7.694-2.117"/></g>
+                        </svg>
+                        <Card.Title>USDT (Tether) - Erro</Card.Title>
+                    </div>
+                </Card.Header>
+                <Card.Content>
+                  <p className="text-center text-red-500 dark:text-red-400 py-10">{usdtPriceError}</p>
+                </Card.Content>
+              </Card>
+            </>
+          );
+        }
+        return (
+            <>
+              <Button onClick={() => setActiveView('selector')} variant="secondary" size="md" className="mb-6" aria-label="Voltar para seleção de ferramentas">
+                &larr; Voltar para seleção de ferramentas
+              </Button>
+              <Card>
+                 <Card.Header>
+                    <div className="flex items-center space-x-3">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" className="w-8 h-8 text-green-500">
+                           <g fillRule="evenodd"><circle cx="16" cy="16" r="16" fill="#26A17B"/><path fill="#FFF" d="M17.922 17.383v-.002c-.11.008-.677.042-1.942.042c-1.01 0-1.721-.03-1.971-.042v.003c-3.888-.171-6.79-.848-6.79-1.658c0-.809 2.902-1.486 6.79-1.66v2.644c.254.018.982.061 1.988.061c1.207 0 1.812-.05 1.925-.06v-2.643c3.88.173 6.775.85 6.775 1.658c0 .81-2.895 1.485-6.775 1.657m0-3.59v-2.366h5.414V7.819H8.595v3.608h5.414v2.365c-4.4.202-7.709 1.074-7.709 2.118c0 1.044 3.309 1.915 7.709 2.118v7.582h3.913v-7.584c4.393-.202 7.694-1.073 7.694-2.116c0-1.043-3.301-1.914-7.694-2.117"/></g>
+                        </svg>
+                        <Card.Title>USDT (Tether) - Detalhes</Card.Title>
+                    </div>
+                </Card.Header>
+                <Card.Content className="space-y-6">
+                    <div className="p-4 bg-slate-100 dark:bg-slate-800 rounded-lg shadow-inner">
+                        <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200 mb-2">Gráfico Interativo de Preço (BRL)</h3>
+                         <UsdtDetailedChart coinId="tether" vsCurrency="brl" />
+                    </div>
+
+                    {isLoadingUsdtPrice && usdtPriceInfo && !usdtPriceInfo.description && (
+                        <div className="text-center text-xs text-slate-500 dark:text-slate-400">Atualizando dados detalhados...</div>
+                    )}
+                    {usdtPriceError && usdtPriceInfo && !usdtPriceInfo.description && (
+                        <div className="text-center text-xs text-red-500 dark:text-red-400">Erro ao atualizar dados. Exibindo cotação básica.</div>
+                    )}
+                    {(!usdtPriceInfo && !isLoadingUsdtPrice && !usdtPriceError) && (
+                        <p className="text-center text-slate-500 dark:text-slate-400 py-5">Nenhum dado de cotação do USDT disponível.</p>
+                    )}
+                    {usdtPriceInfo && (
+                        <div className="p-4 bg-slate-100 dark:bg-slate-800 rounded-lg shadow-inner">
+                            <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200 mb-2">Cotação Atual</h3>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                                <p><strong className="text-slate-600 dark:text-slate-300">Preço (USD):</strong> {formatCurrency(usdtPriceInfo.usd, 'USD')}</p>
+                                <p><strong className="text-slate-600 dark:text-slate-300">Preço (BRL):</strong> {formatCurrency(usdtPriceInfo.brl)}</p>
+                            </div>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                Última atualização: {formatUnixTimestampForDisplay(usdtPriceInfo.lastUpdatedAt)} (CoinGecko)
+                            </p>
+                        </div>
+                    )}
+
+                    {usdtPriceInfo && (usdtPriceInfo.marketCapUsd || usdtPriceInfo.marketCapBrl || usdtPriceInfo.totalSupply || usdtPriceInfo.circulatingSupply) && (
+                        <div className="p-4 bg-slate-100 dark:bg-slate-800 rounded-lg shadow-inner">
+                            <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200 mb-2">Dados de Mercado</h3>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                            {usdtPriceInfo.marketCapUsd && <p><strong className="text-slate-600 dark:text-slate-300">Capitalização (USD):</strong> {formatCurrency(usdtPriceInfo.marketCapUsd, 'USD')}</p>}
+                            {usdtPriceInfo.marketCapBrl && <p><strong className="text-slate-600 dark:text-slate-300">Capitalização (BRL):</strong> {formatCurrency(usdtPriceInfo.marketCapBrl)}</p>}
+                            {usdtPriceInfo.totalSupply && <p><strong className="text-slate-600 dark:text-slate-300">Fornecimento Total:</strong> {formatNumber(usdtPriceInfo.totalSupply, 0)} USDT</p>}
+                            {usdtPriceInfo.circulatingSupply && <p><strong className="text-slate-600 dark:text-slate-300">Fornecimento Circulante:</strong> {formatNumber(usdtPriceInfo.circulatingSupply, 0)} USDT</p>}
+                            </div>
+                        </div>
+                    )}
+
+                    {usdtPriceInfo && usdtPriceInfo.description && (
+                        <div className="p-4 bg-slate-100 dark:bg-slate-800 rounded-lg shadow-inner">
+                            <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200 mb-2">Sobre o USDT (Tether)</h3>
+                            <div 
+                            className="text-sm text-slate-600 dark:text-slate-300 prose prose-sm dark:prose-invert max-w-none leading-relaxed"
+                            dangerouslySetInnerHTML={{ __html: usdtPriceInfo.description }} 
+                            />
+                        </div>
+                    )}
+                </Card.Content>
+              </Card>
+            </>
+          );
       default:
         return null;
     }
   };
 
   return (
-    <div className="min-h-screen p-4 sm:p-8">
-      <header className="container mx-auto mb-8">
-        <div className="flex justify-between items-center">
-          <h1 className="text-2xl sm:text-3xl font-bold text-blue-600 dark:text-blue-300">
-            Calculadora Financeira Pro
-          </h1>
-          <ThemeToggle />
+    <div className="min-h-screen">
+      <header className="fixed top-0 left-0 right-0 z-50 bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg shadow-premium">
+        <div className="container mx-auto px-4 sm:px-6 pt-4 pb-2 relative">
+          <div className="flex justify-center items-center">
+            <h1 className="text-2xl sm:text-3xl font-bold">
+              <svg 
+                viewBox="0 0 165 35" 
+                fill="none" 
+                xmlns="http://www.w3.org/2000/svg" 
+                aria-labelledby="wealthLabLogoTitleV9" 
+                className="h-10 sm:h-12 w-auto" 
+                role="img"
+              >
+                <title id="wealthLabLogoTitleV9">The Wealth Lab Logo</title>
+                <defs>
+                  <linearGradient id="labTextGradient" x1="0%" y1="0%" x2="100%" y2="100%" gradientTransform="translate(0 0)">
+                    <stop offset="0%" style={{stopColor: '#3B82F6', stopOpacity: 1}} /> {/* blue-500 */}
+                    <stop offset="100%" style={{stopColor: '#1D4ED8', stopOpacity: 1}} /> {/* blue-700 */}
+                    <animateTransform
+                      attributeName="gradientTransform"
+                      type="translate"
+                      values="0 0; 0.03 0.03; 0 0; -0.03 -0.03; 0 0" 
+                      dur="8s"
+                      repeatCount="indefinite"
+                    />
+                  </linearGradient>
+                </defs>
+                <text x="50%" y="50%" dominantBaseline="middle" textAnchor="middle" fontFamily="'Outfit', Arial, sans-serif">
+                  <tspan fontSize="15" fontWeight="400" className="fill-slate-700 dark:fill-slate-200">the </tspan>
+                  <tspan fontWeight="400" fontSize="26" className="fill-slate-700 dark:fill-slate-200">wealth</tspan>
+                  <tspan fontWeight="700" fontSize="26" fill="url(#labTextGradient)">lab.</tspan>
+                </text>
+              </svg>
+            </h1>
+          </div>
+          <div className="absolute right-4 sm:right-6 top-1/2 -translate-y-1/2">
+            <ThemeToggle />
+          </div>
         </div>
-        <p className="mt-2 text-sm sm:text-base text-gray-600 dark:text-blue-400">
-          {getSubtitle()}
-        </p>
       </header>
 
-      <main className="container mx-auto">
+      <main className="container mx-auto px-4 sm:px-6 pt-[5rem] sm:pt-[6rem] pb-8">
         {renderContent()}
       </main>
 
-      <footer className="container mx-auto mt-12 text-center text-xs sm:text-sm text-gray-500 dark:text-gray-400 py-4 border-t border-gray-200 dark:border-slate-700">
-        <p>&copy; {new Date().getFullYear()} Calculadora Financeira Pro.</p>
+      <footer className="container mx-auto px-4 sm:px-6 mt-12 text-center text-xs sm:text-sm text-slate-500 dark:text-slate-400 py-4 border-t border-gray-200 dark:border-slate-800">
+        <p>&copy; {new Date().getFullYear()} The Wealth Lab.</p>
         <p className="mt-1">Criado por Daniel Camargo, CFP® e Instagram: @_cmdan</p>
         <p className="mt-1">Lembre-se: esta é uma ferramenta de simulação. Rentabilidade passada não garante rentabilidade futura. O comparativo histórico utiliza dados reais (estáticos e limitados a um período específico) para fins ilustrativos. Consulte um profissional.</p>
       </footer>

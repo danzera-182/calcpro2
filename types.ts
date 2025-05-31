@@ -116,7 +116,7 @@ export interface FixedIncomeResult {
 
 
 // Type for App View
-export type AppView = 'selector' | 'compoundInterest' | 'fixedIncomeComparator' | 'comprehensiveComparator' | 'macroEconomicPanel' | 'macroEconomicTerminal';
+export type AppView = 'selector' | 'compoundInterest' | 'fixedIncomeComparator' | 'comprehensiveComparator' | 'macroEconomicPanel' | 'macroEconomicTerminal' | 'bitcoinChartDetail' | 'usdtChartDetail';
 
 // Types for Comprehensive Comparator
 export type InvestmentPeriodUnit = 'months' | 'years';
@@ -160,10 +160,36 @@ export interface InvestmentCalculationResult {
 }
 
 // Type for Bitcoin Price
+export interface BitcoinPriceHistoryPoint {
+  timestamp: number; // Unix timestamp (ms)
+  price: number;     // Price at the given timestamp
+}
+
 export interface BtcPriceInfo {
   brl: number;
   usd: number;
   lastUpdatedAt: number; // Unix timestamp for when the price was last updated
+  marketCapUsd?: number;
+  marketCapBrl?: number;
+  totalSupply?: number;
+  circulatingSupply?: number;
+  description?: string; // HTML string for description
+  usd_24h_change?: number;
+  brl_24h_change?: number;
+}
+
+// Type for USDT Price
+export interface UsdtPriceInfo {
+  brl: number;
+  usd: number;
+  lastUpdatedAt: number; // Unix timestamp
+  marketCapUsd?: number;
+  marketCapBrl?: number;
+  totalSupply?: number;
+  circulatingSupply?: number;
+  description?: string; // HTML string for description
+  usd_24h_change?: number;
+  brl_24h_change?: number;
 }
 
 // Type for USD/BRL Exchange Rate
@@ -280,15 +306,6 @@ export interface AvailableIndicatorForTerminal {
   isDailyData?: boolean;
   defaultChartColor?: string; // Optional: a default color for this indicator line
   dataKey: string; // Unique key for Recharts data, e.g., 'selicValue', 'ptaxValue'
-}
-
-export interface TerminalChartSeries {
-  indicatorId: string; // Corresponds to AvailableIndicatorForTerminal.id
-  name: string; // Legend name
-  dataKey: string; // Key in the merged dataset for Recharts Line
-  stroke: string; // Color for the line
-  data: HistoricalDataPoint[]; // Raw fetched data (before merging/normalization, for reference or individual processing)
-  yAxisId?: string; // Optional: for multiple Y-axes
 }
 
 // This will be the structure for the Recharts data prop after merging

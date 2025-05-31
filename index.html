@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Calculadora de Juros Compostos Pro</title>
+  <title>The Wealth Lab</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -18,18 +18,29 @@
               dark: '#1D4ED8' //blue-700
             },
             slate: { 
-              800: '#1e293b',
-              900: '#0f172a' // For darker backgrounds
+              50: '#F8FAFC',  // Very light gray for light mode body
+              100: '#F1F5F9',
+              200: '#E2E8F0',
+              300: '#CBD5E1', // Dark mode primary text
+              400: '#94A3B8',
+              500: '#64748B',
+              600: '#475569',
+              700: '#334155', // Light mode primary text, dark mode input/secondary button bg
+              800: '#1e293b', // Dark mode card bg
+              900: '#0f172a'  // Dark mode body bg
             }
           },
           fontFamily: {
             sans: ['Inter', 'sans-serif'],
+             // A fonte Outfit será aplicada via CSS específico ou inline no SVG do logo
           },
           boxShadow: {
             'xl': '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
             '2xl': '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
             'subtle': '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
             'inner': 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.05)',
+            'premium': '0 10px 25px -12px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+            'premium-hover': '0 20px 35px -16px rgba(0, 0, 0, 0.15), 0 8px 12px -4px rgba(0, 0, 0, 0.07)',
           },
         }
       }
@@ -38,19 +49,21 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&display=swap" rel="stylesheet"> {/* Outfit font com pesos 400 e 700 */}
   <style>
     body {
       font-family: 'Inter', sans-serif;
-      background-color: #F3F4F6; /* Tailwind gray-100 */
-      color: #111827; /* Tailwind gray-900 */
+      background-color: #F8FAFC; /* slate-50 */
+      color: #334155; /* slate-700 */
+      line-height: 1.6; /* More relaxed line height */
       transition-property: background-color, color;
       transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
       transition-duration: 300ms;
     }
 
     html.dark body {
-      background-color: #030712; /* gray-950 */
-      color: #60A5FA; /* blue-400 */
+      background-color: #0f172a; /* slate-900 */
+      color: #CBD5E1; /* slate-300 */
     }
 
     /* Custom scrollbar for webkit browsers */
@@ -59,24 +72,28 @@
       height: 8px;
     }
     ::-webkit-scrollbar-track {
-      background-color: #F3F4F6; /* Tailwind gray-100 */
+      background-color: #F8FAFC; /* slate-50 */
     }
     html.dark ::-webkit-scrollbar-track {
-      background-color: #0f172a; /* Tailwind slate-900 */
+      background-color: #0f172a; /* slate-900 */
     }
     ::-webkit-scrollbar-thumb {
-      background-color: #9CA3AF; /* Tailwind gray-400 */
+      background-color: #CBD5E1; /* slate-300 */
       border-radius: 0.375rem; /* rounded-md */
     }
     html.dark ::-webkit-scrollbar-thumb {
-      background-color: #334155; /* Tailwind slate-700 */
+      background-color: #334155; /* slate-700 */
     }
     ::-webkit-scrollbar-thumb:hover {
-      background-color: #6B7280; /* Tailwind gray-500 */
+      background-color: #94A3B8; /* slate-400 */
     }
     html.dark ::-webkit-scrollbar-thumb:hover {
-      background-color: #475569; /* Tailwind slate-600 */
+      background-color: #475569; /* slate-600 */
     }
+
+    /* CSS for .logo-lab-gradient and its animation has been removed. */
+    /* Gradient will be handled via SVG fill. */
+
   </style>
 <script type="importmap">
 {
@@ -91,11 +108,11 @@
   }
 }
 </script>
+<link rel="stylesheet" href="/index.css">
 </head>
-<body>
+<body class="leading-relaxed">
   <noscript>Você precisa habilitar o JavaScript para rodar este aplicativo.</noscript>
   <div id="root"></div>
   <script type="module" src="/index.tsx"></script>
 </body>
-</html><link rel="stylesheet" href="index.css">
-<script src="index.tsx" type="module"></script>
+</html>

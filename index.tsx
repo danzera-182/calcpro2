@@ -1,8 +1,8 @@
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './App';
-import { ThemeProvider } from './hooks/useTheme.tsx'; // Adicionada a extensão .tsx
+import App from './App.tsx'; // Added .tsx extension
+import { ThemeProvider } from './hooks/useTheme.tsx'; // Added .tsx extension
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
