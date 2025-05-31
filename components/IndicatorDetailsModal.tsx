@@ -21,18 +21,25 @@ const CloseIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   </svg>
 );
 
+type CdiChartType = 'monthly' | 'accumulated12m';
+
 const IndicatorDetailsModal: React.FC<IndicatorDetailsModalProps> = ({ isOpen, onClose, indicator, onFetchHistoricalData }) => {
   const [historicalDataMonthly, setHistoricalDataMonthly] = useState<HistoricalDataPoint[] | null>(null);
   const [isLoadingHistoricalMonthly, setIsLoadingHistoricalMonthly] = useState<boolean>(false);
   const [historicalErrorMonthly, setHistoricalErrorMonthly] = useState<string | null>(null);
 
-  const [historicalDataAnnual, setHistoricalDataAnnual] = useState<HistoricalDataPoint[] | null>(null);
-  const [isLoadingHistoricalAnnual, setIsLoadingHistoricalAnnual] = useState<boolean>(false);
-  const [historicalErrorAnnual, setHistoricalErrorAnnual] = useState<string | null>(null);
+  const [historicalDataAnnual, setHistoricalDataAnnual] = useState<HistoricalDataPoint[] | null>(null); // For IPCA 12m
+  const [isLoadingHistoricalAnnual, setIsLoadingHistoricalAnnual] = useState<boolean>(false); // For IPCA 12m
+  const [historicalErrorAnnual, setHistoricalErrorAnnual] = useState<string | null>(null); // For IPCA 12m
   
   const [selectedPreset, setSelectedPreset] = useState<DateRangePreset>('1Y');
   const [customStartDate, setCustomStartDate] = useState<string>('');
   const [customEndDate, setCustomEndDate] = useState<string>('');
+
+  const [cdiChartType, setCdiChartType] = useState<CdiChartType>('monthly');
+  const [accumulatedPeriodValue, setAccumulatedPeriodValue] = useState<number | null>(null);
+  const [currentPeriodForAccumulation, setCurrentPeriodForAccumulation] = useState<string>('');
+
 
   const getDatesFromPreset = (preset: DateRangePreset): { start: string, end: string } => {
     const endDate = new Date();
@@ -60,98 +67,113 @@ const IndicatorDetailsModal: React.FC<IndicatorDetailsModalProps> = ({ isOpen, o
     return { start: formatDate(startDate), end: formatDate(endDate) };
   };
   
-  const fetchIpcaChartsData = useCallback(async (start: string, end: string) => {
+  const fetchChartDataForIndicator = useCallback(async (start: string, end: string) => {
     if (!indicator) return;
 
-    // Fetch Monthly IPCA (SGS 433 from original indicator.sgsCode)
-    if (indicator.sgsCode && indicator.sgsCode !== 'PTAX' && typeof indicator.sgsCode === 'number') { // PTAX is not a valid SGS code here
-        setIsLoadingHistoricalMonthly(true);
-        setHistoricalErrorMonthly(null);
-        setHistoricalDataMonthly(null);
-        try {
-            const data = await onFetchHistoricalData(indicator.sgsCode, start, end);
-            setHistoricalDataMonthly(data);
-        } catch (e: any) {
-            setHistoricalErrorMonthly(e.message || "Erro ao buscar dados mensais do IPCA.");
-        } finally {
-            setIsLoadingHistoricalMonthly(false);
-        }
-    } else if (indicator.sgsCode !== 'PTAX'){
-         setHistoricalErrorMonthly("Código SGS para IPCA mensal não encontrado.");
-    }
-
-
-    // Fetch Annual (12m Accumulated) IPCA (SGS 13522)
-    const annualSgsCode = 13522; 
-    setIsLoadingHistoricalAnnual(true);
-    setHistoricalErrorAnnual(null);
-    setHistoricalDataAnnual(null);
-    try {
-        const data = await onFetchHistoricalData(annualSgsCode, start, end);
-        setHistoricalDataAnnual(data);
-    } catch (e: any) {
-        setHistoricalErrorAnnual(e.message || "Erro ao buscar dados anuais (12m) do IPCA.");
-    } finally {
-        setIsLoadingHistoricalAnnual(false);
-    }
-  }, [indicator, onFetchHistoricalData]);
-
-  const fetchSingleChartData = useCallback(async (start: string, end: string) => {
-    if (!indicator || !indicator.sgsCode) {
-      setHistoricalErrorMonthly("Código do indicador não definido para buscar dados históricos.");
-      return;
-    }
     setIsLoadingHistoricalMonthly(true);
     setHistoricalErrorMonthly(null);
     setHistoricalDataMonthly(null);
+    setAccumulatedPeriodValue(null);
+    setCurrentPeriodForAccumulation(`de ${start} a ${end}`);
 
-    try {
-      let seriesType: 'PTAX' | undefined = undefined;
-      if (indicator.sgsCode === 'PTAX') seriesType = 'PTAX';
-      
-      const data = await onFetchHistoricalData(indicator.sgsCode, start, end, seriesType);
-      setHistoricalDataMonthly(data);
-    } catch (e: any) {
-      setHistoricalErrorMonthly(e.message || "Erro ao buscar dados históricos.");
-    } finally {
-      setIsLoadingHistoricalMonthly(false);
+
+    let sgsCodeToFetch: string | number | undefined = indicator.sgsCode;
+    let seriesTypeToFetch = indicator.seriesType;
+
+    if (indicator.title === "Taxa CDI") {
+        sgsCodeToFetch = cdiChartType === 'monthly' ? 4391 : 4389;
+    } else if (indicator.title === "IPCA (Inflação)") {
+        sgsCodeToFetch = 433; // Always fetch monthly IPCA for the primary chart
     }
-  }, [indicator, onFetchHistoricalData]);
+    
+    if (sgsCodeToFetch) {
+      try {
+        const data = await onFetchHistoricalData(sgsCodeToFetch, start, end, seriesTypeToFetch);
+        setHistoricalDataMonthly(data);
+      } catch (e: any) {
+        setHistoricalErrorMonthly(e.message || "Erro ao buscar dados históricos.");
+      }
+    } else {
+        setHistoricalErrorMonthly("Código SGS não definido para este indicador.");
+    }
+    setIsLoadingHistoricalMonthly(false);
 
+
+    // Specific logic for IPCA 12m accumulated chart
+    if (indicator.title === "IPCA (Inflação)") {
+      const annualSgsCodeIpca = 13522;
+      setIsLoadingHistoricalAnnual(true);
+      setHistoricalErrorAnnual(null);
+      setHistoricalDataAnnual(null);
+      try {
+        const dataAnnual = await onFetchHistoricalData(annualSgsCodeIpca, start, end);
+        setHistoricalDataAnnual(dataAnnual);
+      } catch (e: any) {
+        setHistoricalErrorAnnual(e.message || "Erro ao buscar dados anuais (12m) do IPCA.");
+      } finally {
+        setIsLoadingHistoricalAnnual(false);
+      }
+    }
+  }, [indicator, onFetchHistoricalData, cdiChartType]);
 
   useEffect(() => {
     if (isOpen && indicator) {
-      const { start, end } = getDatesFromPreset(selectedPreset);
+      const { start, end } = getDatesFromPreset(selectedPreset || '1Y');
       setCustomStartDate(start.split('/').reverse().join('-')); 
       setCustomEndDate(end.split('/').reverse().join('-'));   
       
-      // Only fetch if sgsCode is present (not undefined, not 'FOCUS_ONLY', etc.)
-      if (indicator.sgsCode && typeof indicator.sgsCode === 'number' || indicator.sgsCode === 'PTAX') {
-        if (indicator.title === "IPCA (Inflação)") {
-          fetchIpcaChartsData(start, end);
-        } else {
-          fetchSingleChartData(start, end);
-        }
+      if (indicator.sgsCode && typeof indicator.sgsCode === 'number' || indicator.sgsCode === 'PTAX' || indicator.title === "Taxa CDI") {
+         fetchChartDataForIndicator(start, end);
       } else {
         setHistoricalDataMonthly(null);
         setHistoricalDataAnnual(null);
-        setHistoricalErrorMonthly(null); // Clear any previous error
+        setAccumulatedPeriodValue(null);
+        setHistoricalErrorMonthly(null); 
         setHistoricalErrorAnnual(null);
       }
     } else {
+      // Reset states when modal closes or indicator is null
       setHistoricalDataMonthly(null);
       setHistoricalDataAnnual(null);
       setIsLoadingHistoricalMonthly(false);
       setIsLoadingHistoricalAnnual(false);
       setHistoricalErrorMonthly(null);
       setHistoricalErrorAnnual(null);
+      setAccumulatedPeriodValue(null);
+      setCurrentPeriodForAccumulation('');
       setSelectedPreset('1Y');
+      setCdiChartType('monthly');
     }
-  }, [isOpen, indicator, selectedPreset, fetchIpcaChartsData, fetchSingleChartData]); 
+  }, [isOpen, indicator, selectedPreset, cdiChartType, fetchChartDataForIndicator]); 
+  
+  
+  useEffect(() => {
+    if (historicalDataMonthly && historicalDataMonthly.length > 0 && indicator) {
+      const relevantIndicatorForAccumulation = 
+        (indicator.title === "Taxa CDI" && cdiChartType === 'monthly') ||
+        (indicator.title === "IPCA (Inflação)" && indicator.sgsCode === 433) || // Assuming 433 is monthly IPCA
+        (indicator.title === "IGP-M (Inflação)" && indicator.sgsCode === 189); // Assuming 189 is monthly IGP-M
+
+      if (relevantIndicatorForAccumulation) {
+        let productOfGrowthFactors = 1;
+        for (const point of historicalDataMonthly) {
+          productOfGrowthFactors *= (1 + point.value / 100);
+        }
+        const totalAccumulated = (productOfGrowthFactors - 1) * 100;
+        setAccumulatedPeriodValue(totalAccumulated);
+      } else {
+        setAccumulatedPeriodValue(null);
+      }
+    } else {
+      setAccumulatedPeriodValue(null);
+    }
+  }, [historicalDataMonthly, indicator, cdiChartType]);
+
 
   const handlePresetChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newPreset = e.target.value as DateRangePreset;
     setSelectedPreset(newPreset);
+    // Dates and fetch will be handled by the useEffect watching selectedPreset
   };
   
   const handleCustomDateFetch = () => {
@@ -162,19 +184,15 @@ const IndicatorDetailsModal: React.FC<IndicatorDetailsModalProps> = ({ isOpen, o
              const apiStartDate = `${startParts[2]}/${startParts[1]}/${startParts[0]}`; 
              const apiEndDate = `${endParts[2]}/${endParts[1]}/${endParts[0]}`;     
             
-            if (indicator?.title === "IPCA (Inflação)" && indicator?.sgsCode) {
-                fetchIpcaChartsData(apiStartDate, apiEndDate);
-            } else if (indicator?.sgsCode) {
-                fetchSingleChartData(apiStartDate, apiEndDate);
+            if (indicator?.sgsCode || indicator?.title === "Taxa CDI") {
+                 fetchChartDataForIndicator(apiStartDate, apiEndDate);
             }
-            setSelectedPreset('' as DateRangePreset); 
+            setSelectedPreset('' as DateRangePreset); // Clear preset selection
         } else {
-            const errorSetter = indicator?.title === "IPCA (Inflação)" ? setHistoricalErrorMonthly : setHistoricalErrorMonthly; // Primary error display
-            errorSetter("Formato de data inválido. Use YYYY-MM-DD.");
+            setHistoricalErrorMonthly("Formato de data inválido. Use YYYY-MM-DD.");
         }
     } else {
-        const errorSetter = indicator?.title === "IPCA (Inflação)" ? setHistoricalErrorMonthly : setHistoricalErrorMonthly;
-        errorSetter("Por favor, preencha ambas as datas (início e fim).");
+        setHistoricalErrorMonthly("Por favor, preencha ambas as datas (início e fim).");
     }
   };
 
@@ -182,12 +200,11 @@ const IndicatorDetailsModal: React.FC<IndicatorDetailsModalProps> = ({ isOpen, o
     return null;
   }
 
+  // Determine current value display
   let displayValueContent: string | React.ReactNode = 'N/D';
   let suffixForDisplay = ''; 
-
   if (indicator.currentValue !== null && indicator.currentValue !== undefined) {
     suffixForDisplay = indicator.valueSuffix || ''; 
-
     if (typeof indicator.currentValue === 'number') {
       if (indicator.isBillions) {
         displayValueContent = formatNumberForDisplay(indicator.currentValue / 1000, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -202,6 +219,34 @@ const IndicatorDetailsModal: React.FC<IndicatorDetailsModalProps> = ({ isOpen, o
     suffixForDisplay = '';
   }
 
+  const canDisplayHistorical = indicator.sgsCode || (indicator.title === "IPCA (Inflação)") || (indicator.title === "Taxa CDI");
+
+  // Prepare indicator config for the primary chart (monthly CDI or other indicators)
+  let primaryChartConfig = { ...indicator };
+  if (indicator.title === "Taxa CDI") {
+    if (cdiChartType === 'monthly') {
+      primaryChartConfig.sgsCode = 4391;
+      primaryChartConfig.title = "CDI Mensal";
+      primaryChartConfig.historicalSeriesName = "CDI (Taxa Média Mensal %)";
+      primaryChartConfig.historicalYAxisLabel = "% a.m.";
+      primaryChartConfig.valueSuffix = "% a.m.";
+    } else { // accumulated12m
+      primaryChartConfig.sgsCode = 4389;
+      primaryChartConfig.title = "CDI Acumulado 12 Meses";
+      primaryChartConfig.historicalSeriesName = "CDI (Acumulado 12 Meses %)";
+      primaryChartConfig.historicalYAxisLabel = "% a.a.";
+      primaryChartConfig.valueSuffix = "% a.a.";
+    }
+  } else if (indicator.title === "IPCA (Inflação)") {
+     primaryChartConfig.sgsCode = 433; // Force monthly for the primary chart
+     primaryChartConfig.title = "IPCA (Variação Mensal)";
+     primaryChartConfig.historicalSeriesName = "IPCA (Variação Mensal %)";
+     primaryChartConfig.historicalYAxisLabel = "Variação %";
+     primaryChartConfig.valueSuffix = "%";
+  }
+
+
+  // Prepare indicator config for the secondary chart (IPCA 12m accumulated)
   const annualIpcaChartConfig: IndicatorModalData | undefined = indicator?.title === "IPCA (Inflação)" ? {
       ...indicator, 
       sgsCode: 13522, 
@@ -213,8 +258,6 @@ const IndicatorDetailsModal: React.FC<IndicatorDetailsModalProps> = ({ isOpen, o
       historicalYAxisLabel: "Acum. %",
       valuePrecision: 2, 
   } : undefined;
-
-  const canDisplayHistorical = indicator.sgsCode || (indicator.title === "IPCA (Inflação)" && typeof indicator.sgsCode === 'number');
 
 
   return (
@@ -275,37 +318,52 @@ const IndicatorDetailsModal: React.FC<IndicatorDetailsModalProps> = ({ isOpen, o
                   </div>
                   <Button onClick={handleCustomDateFetch} variant="secondary" size="md" className="mt-2 sm:mt-0 sm:self-end">Buscar Período</Button>
                 </div>
+                
+                {accumulatedPeriodValue !== null && (
+                  <div className="my-4 p-3 bg-blue-50 dark:bg-slate-800 rounded-lg border border-blue-300 dark:border-blue-600 shadow-sm text-center">
+                    <span className="block text-xs text-slate-600 dark:text-slate-300">
+                      Retorno Acumulado no período ({currentPeriodForAccumulation}):
+                    </span>
+                    <span className="block text-xl font-bold text-blue-600 dark:text-blue-300">
+                      {formatNumberForDisplay(accumulatedPeriodValue, {minimumFractionDigits: 2, maximumFractionDigits: 2})}%
+                    </span>
+                  </div>
+                )}
 
-                {indicator.title === "IPCA (Inflação)" ? (
-                  <>
-                    <div className="mb-6">
-                      <h5 className="text-sm font-semibold text-gray-600 dark:text-blue-300 mb-2">IPCA - Variação Mensal (%)</h5>
-                      <HistoricalLineChart 
-                        data={historicalDataMonthly || []} 
-                        indicatorConfig={indicator} 
-                        isLoading={isLoadingHistoricalMonthly} 
-                        error={historicalErrorMonthly} 
-                      />
+
+                {indicator.title === "Taxa CDI" && (
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tipo de Gráfico CDI:</label>
+                    <div className="flex items-center space-x-4">
+                      <label className="flex items-center space-x-1 cursor-pointer">
+                        <input type="radio" name="cdiChartType" value="monthly" checked={cdiChartType === 'monthly'} onChange={() => setCdiChartType('monthly')} className="form-radio text-blue-600 dark:text-blue-400 focus:ring-blue-500 dark:focus:ring-blue-400"/>
+                        <span className="text-sm text-gray-700 dark:text-gray-300">Mensal (%)</span>
+                      </label>
+                      <label className="flex items-center space-x-1 cursor-pointer">
+                        <input type="radio" name="cdiChartType" value="accumulated12m" checked={cdiChartType === 'accumulated12m'} onChange={() => setCdiChartType('accumulated12m')} className="form-radio text-blue-600 dark:text-blue-400 focus:ring-blue-500 dark:focus:ring-blue-400"/>
+                        <span className="text-sm text-gray-700 dark:text-gray-300">Acumulado 12 Meses (%)</span>
+                      </label>
                     </div>
-                    {annualIpcaChartConfig && (
-                      <div>
-                        <h5 className="text-sm font-semibold text-gray-600 dark:text-blue-300 mb-2">{annualIpcaChartConfig.title}</h5>
-                         <HistoricalLineChart 
-                           data={historicalDataAnnual || []} 
-                           indicatorConfig={annualIpcaChartConfig} 
-                           isLoading={isLoadingHistoricalAnnual} 
-                           error={historicalErrorAnnual} 
-                         />
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <HistoricalLineChart 
-                    data={historicalDataMonthly || []} 
-                    indicatorConfig={indicator} 
-                    isLoading={isLoadingHistoricalMonthly} 
-                    error={historicalErrorMonthly} 
-                  />
+                  </div>
+                )}
+
+                <HistoricalLineChart 
+                  data={historicalDataMonthly || []} 
+                  indicatorConfig={primaryChartConfig} 
+                  isLoading={isLoadingHistoricalMonthly} 
+                  error={historicalErrorMonthly} 
+                />
+                
+                {indicator.title === "IPCA (Inflação)" && annualIpcaChartConfig && (
+                  <div className="mt-6">
+                    <h5 className="text-sm font-semibold text-gray-600 dark:text-blue-300 mb-2">{annualIpcaChartConfig.title}</h5>
+                     <HistoricalLineChart 
+                       data={historicalDataAnnual || []} 
+                       indicatorConfig={annualIpcaChartConfig} 
+                       isLoading={isLoadingHistoricalAnnual} 
+                       error={historicalErrorAnnual} 
+                     />
+                  </div>
                 )}
               </>
             ) : (

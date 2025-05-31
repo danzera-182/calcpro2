@@ -150,7 +150,7 @@ const TerminalChartDisplay: React.FC<TerminalChartDisplayProps> = ({ data, activ
   }
 
   return (
-    <div ref={chartContainerRef} style={{ width: '100%', height: 400, touchAction: 'manipulation' }} role="figure" aria-label="Gráfico comparativo de indicadores macroeconômicos">
+    <div ref={chartContainerRef} style={{ width: '100%', height: 400, touchAction: 'manipulation', overflowX: 'auto' }} role="figure" aria-label="Gráfico comparativo de indicadores macroeconômicos">
       <ResponsiveContainer>
         <LineChart data={data} margin={{ top: 5, right: 20, left: 25, bottom: 20 }}>
           <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />

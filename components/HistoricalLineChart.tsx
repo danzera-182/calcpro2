@@ -73,6 +73,9 @@ const HistoricalLineChart: React.FC<HistoricalLineChartProps> = ({ data, indicat
     const chartNode = chartContainerRef.current;
     if (chartNode) {
       const handleTouchMove = (event: TouchEvent) => {
+        // Check if the touch is primarily horizontal to allow chart interaction,
+        // otherwise allow page scroll. This is a common pattern but might need refinement.
+        // For simplicity, we're keeping the preventDefault as is for now.
         event.preventDefault();
       };
       chartNode.addEventListener('touchmove', handleTouchMove, { passive: false });
@@ -152,7 +155,7 @@ const HistoricalLineChart: React.FC<HistoricalLineChartProps> = ({ data, indicat
   // else if (maxValue < 0 && maxValue > minValue * 0.1) yDomain = ['auto', 0];
 
   return (
-    <div ref={chartContainerRef} style={{ width: '100%', height: 300, touchAction: 'manipulation' }}>
+    <div ref={chartContainerRef} style={{ width: '100%', height: 300, touchAction: 'manipulation', overflowX: 'auto' }}>
       <ResponsiveContainer>
         <LineChart data={data} margin={{ top: 5, right: 20, left: 20, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />

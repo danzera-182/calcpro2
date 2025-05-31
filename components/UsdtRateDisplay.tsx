@@ -104,7 +104,7 @@ const UsdtRateDisplay: React.FC<UsdtRateDisplayProps> = ({ priceInfo, isLoading,
 
   return (
     <div 
-      className={`bg-slate-100 dark:bg-slate-800 p-2 sm:p-3 rounded-xl shadow-md w-full max-w-sm mx-auto ${onClick ? 'cursor-pointer hover:shadow-lg active:shadow-inner transition-shadow duration-150' : ''}`}
+      className={`bg-slate-100 dark:bg-slate-800 p-2 sm:p-3 rounded-xl shadow-md w-full ${onClick ? 'cursor-pointer hover:shadow-lg active:shadow-inner transition-shadow duration-150' : ''}`}
       onClick={onClick}
       role={onClick ? "button" : undefined}
       tabIndex={onClick ? 0 : undefined}
