@@ -1,4 +1,3 @@
-
 // utils/economicIndicatorsAPI.ts
 import { HistoricalDataPoint, DynamicHistoricalAverage, BtcPriceInfo, UsdBrlRateInfo, BitcoinPriceHistoryPoint, UsdtPriceInfo } from '../types'; 
 // Removed FinnhubNewsItem from import
@@ -416,7 +415,9 @@ export async function fetchLatestBitcoinPrice(): Promise<BtcPriceInfo | null> {
   
   const headers: HeadersInit = {};
   if (apiKey) {
-    headers['x-cg-pro-api-key'] = apiKey; 
+    // headers['x-cg-pro-api-key'] = apiKey; // For Pro API
+    // Append as query parameter for demo/public key
+     // url += (url.includes('?') ? '&' : '?') + `x_cg_demo_api_key=${apiKey}`;
   }
 
   try {
@@ -453,12 +454,13 @@ export async function fetchLatestBitcoinPrice(): Promise<BtcPriceInfo | null> {
 export async function fetchLatestUsdtPrice(): Promise<UsdtPriceInfo | null> {
   const coinId = 'tether';
   // Similar to Bitcoin, fetch all data from the /coins/{id} endpoint
-  const url = `${COINGECKO_BASE_URL}/coins/${coinId}?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false&sparkline=false`;
+  let url = `${COINGECKO_BASE_URL}/coins/${coinId}?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false&sparkline=false`;
   
   const apiKey = (typeof process !== 'undefined' && process.env) ? process.env.COINGECKO_API_KEY : undefined;
   const headers: HeadersInit = {};
   if (apiKey) {
-    headers['x-cg-pro-api-key'] = apiKey;
+    // headers['x-cg-pro-api-key'] = apiKey; // For Pro API
+    // url += (url.includes('?') ? '&' : '?') + `x_cg_demo_api_key=${apiKey}`;
   }
 
   try {
@@ -497,12 +499,13 @@ export async function fetchBitcoinHistoricalChartData(
   vsCurrency: string = 'usd',
   days: string = '30' // Can be '1', '7', '30', '90', '365', 'max'
 ): Promise<BitcoinPriceHistoryPoint[] | null> {
-  const url = `${COINGECKO_BASE_URL}/coins/${coinId}/market_chart?vs_currency=${vsCurrency}&days=${days}`;
+  let url = `${COINGECKO_BASE_URL}/coins/${coinId}/market_chart?vs_currency=${vsCurrency}&days=${days}`;
   
   const apiKey = (typeof process !== 'undefined' && process.env) ? process.env.COINGECKO_API_KEY : undefined;
   const headers: HeadersInit = {};
   if (apiKey) {
-    headers['x-cg-pro-api-key'] = apiKey;
+    // headers['x-cg-pro-api-key'] = apiKey; // For Pro API
+    // url += (url.includes('?') ? '&' : '?') + `x_cg_demo_api_key=${apiKey}`;
   }
 
   try {
@@ -531,12 +534,13 @@ export async function fetchUsdtHistoricalChartData(
   vsCurrency: string = 'brl',
   days: string = '30'
 ): Promise<BitcoinPriceHistoryPoint[] | null> { // Reusing BitcoinPriceHistoryPoint for simplicity
-  const url = `${COINGECKO_BASE_URL}/coins/${coinId}/market_chart?vs_currency=${vsCurrency}&days=${days}`;
+  let url = `${COINGECKO_BASE_URL}/coins/${coinId}/market_chart?vs_currency=${vsCurrency}&days=${days}`;
   
   const apiKey = (typeof process !== 'undefined' && process.env) ? process.env.COINGECKO_API_KEY : undefined;
   const headers: HeadersInit = {};
   if (apiKey) {
-    headers['x-cg-pro-api-key'] = apiKey;
+    // headers['x-cg-pro-api-key'] = apiKey; // For Pro API
+    // url += (url.includes('?') ? '&' : '?') + `x_cg_demo_api_key=${apiKey}`;
   }
 
   try {
