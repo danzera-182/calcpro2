@@ -1,43 +1,38 @@
 
 export interface InputFormData {
   initialInvestment: number;
-  contributionValue: number; // Value of the contribution (always monthly)
-  rateValue: number; // Value of the rate (always annual percentage)
+  contributionValue: number; 
+  rateValue: number; 
   investmentPeriodYears: number;
 
-  // Advanced Simulation Fields
   enableAdvancedSimulation?: boolean;
-
-  // Retirement Simulation
   advancedSimModeRetirement?: boolean;
   currentAge?: number;
-  targetAge?: number; // Retirement age
+  targetAge?: number; 
   adjustContributionsForInflation?: boolean;
-  expectedInflationRate?: number; // Annual inflation rate %
-  desiredMonthlyIncomeToday?: number; // Desired monthly income in today's value
+  expectedInflationRate?: number; 
+  desiredMonthlyIncomeToday?: number; 
 
-  // Specific Contributions
   advancedSimModeSpecificContributions?: boolean;
   specificContributions?: SpecificContribution[];
 }
 
 export interface SpecificContribution {
-  id: string; // for React key
-  year: number; // Simulation year (1, 2, ...)
-  month: number; // Simulation month (1-12)
+  id: string; 
+  year: number; 
+  month: number; 
   amount: number;
   description?: string;
 }
 
 export interface ProjectionPoint {
   year: number;
-  initialBalance: number; // Balance at the start of the year
-  totalContributions: number; // Total contributions during the year (excluding initial investment for year 1, includes specific contributions)
-  totalInterestEarned: number; // Total interest earned during the year
-  finalBalance: number; // Balance at the end of the year
-  cumulativeContributions: number; // Cumulative contributions up to this year (including initial investment and specific contributions)
-  cumulativeInterest: number; // Cumulative interest up to this year
-  // For retirement display
+  initialBalance: number; 
+  totalContributions: number; 
+  totalInterestEarned: number; 
+  finalBalance: number; 
+  cumulativeContributions: number; 
+  cumulativeInterest: number; 
   age?: number;
   inflatedDesiredMonthlyIncome?: number;
   requiredCapitalForDesiredIncome?: number;
@@ -48,37 +43,36 @@ export interface MonthlyProjectionPoint {
   year: number;
   monthInYear: number;
   initialBalanceMonthly: number;
-  contributionMonthly: number; // Regular monthly contribution for this month (can be inflation adjusted)
-  specificContributionThisMonth: number; // Any specific one-off contribution this month
+  contributionMonthly: number; 
+  specificContributionThisMonth: number; 
   interestEarnedMonthly: number;
   finalBalanceMonthly: number;
-  age?: number; // Investor's age at the end of this month
+  age?: number; 
 }
 
 export interface ChartDataPoint {
   year: number;
-  value: number; // Final balance for the year
-  totalInvested: number; // Initial + cumulative contributions
+  value: number; 
+  totalInvested: number; 
   age?: number;
-  specificContributionAmount?: number; // Added to store specific contribution amounts for chart tooltips
+  specificContributionAmount?: number; 
 }
 
 export interface ScenarioData {
   label: string;
   data: ProjectionPoint[];
   monthlyData?: MonthlyProjectionPoint[];
-  // Retirement specific results
   retirementAnalysis?: RetirementAnalysisResults;
 }
 
 export interface RetirementAnalysisResults {
   targetAge: number;
   projectedCapitalAtRetirement: number;
-  finalDesiredMonthlyIncome: number; // Inflated desired monthly income at retirement age
-  capitalNeededForDesiredIncome: number; // Based on SWR
+  finalDesiredMonthlyIncome: number; 
+  capitalNeededForDesiredIncome: number; 
   canMeetGoal: boolean;
-  swrUsed: number; // Safe Withdrawal Rate used for calculation (e.g., 0.04 for 4%)
-  achievableMonthlyIncomeWithProjectedCapital?: number; // Max income with projected capital if goal not met
+  swrUsed: number; 
+  achievableMonthlyIncomeWithProjectedCapital?: number; 
 }
 
 
@@ -89,34 +83,23 @@ export interface ThemeContextType {
   toggleTheme: () => void;
 }
 
-// Types for Fixed Income Comparator
 export type FixedIncomeInvestmentType = 'pre' | 'post';
 export type TermUnit = 'days' | 'years';
 export type ConversionDirection = 'grossToNet' | 'netToGross';
 
 export interface FixedIncomeResult {
-  // Inputs from user at time of calculation
   conversionDirection: ConversionDirection;
   investmentType: FixedIncomeInvestmentType;
   termDays: number;
-  inputRateDirect: number; // The rate value user typed directly (e.g., 10 for 10% or 100 for 100% CDI)
-  currentCdiRateForPost?: number; // Only if investmentType is 'post'
-
-  // Core calculated values
-  irRateAppliedPercent: number; // e.g. 15 for 15%
-  
-  // The actual gross and net annual rates (%) after all considerations
+  inputRateDirect: number; 
+  currentCdiRateForPost?: number; 
+  irRateAppliedPercent: number; 
   finalGrossAnnualRate: number; 
   finalNetAnnualRate: number;
-
-  // For post-fixed, the equivalent %CDI for gross and net
-  // These are derived from finalGrossAnnualRate and finalNetAnnualRate
   equivalentGrossCdiPercentage?: number;
   equivalentNetCdiPercentage?: number;
 }
 
-
-// Type for App View
 export type AppView = 
   'selector' | 
   'compoundInterest' | 
@@ -126,136 +109,128 @@ export type AppView =
   'macroEconomicTerminal' | 
   'bitcoinChartDetail' | 
   'usdtChartDetail' |
-  'rssStoriesFeed'; // Added new view for RSS Stories
+  'rssStoriesFeed' |
+  'newsSummaryDetail'; // Added new view for News Summary Detail
 
-// Types for Comprehensive Comparator
+export interface ArticleForSummary { // New type for passing article data to summary view
+  id: string;
+  title: string;
+  link: string;
+  sourceName: string;
+  imageUrl?: string;
+  pubDate?: string;
+}
+
 export type InvestmentPeriodUnit = 'months' | 'years';
 
 export interface ComprehensiveInputs {
-  // Main Simulation Parameters
   initialInvestment: number | null;
   monthlyContributions: number | null;
-  applicationPeriodValue: number | null; // Changed from number to allow null
+  applicationPeriodValue: number | null; 
   applicationPeriodUnit: InvestmentPeriodUnit;
-
-  // Economic Indicators
-  selicRate: number | null;          // Selic efetiva (a.a.) %
-  cdiRate: number | null;            // CDI (a.a.) %
-  ipcaRate: number | null;           // IPCA (a.a.) %
-  trRate: number | null;             // TR (a.m.) %
-
-  // Tesouro Prefixado
-  tesouroPrefixadoNominalRate: number | null; // Juro nominal do Tesouro Prefixado (a.a.) %
-  tesouroCustodyFeeB3: number | null;        // Taxa de custódia da B3 no Tesouro Direto (a.a.) %
-
-  // Tesouro IPCA+
-  tesouroIpcaRealRate: number | null;        // Juro real do Tesouro IPCA+ (a.a.) %
-  
-  // Other Investment Types
-  cdbRatePercentageOfCdi: number | null;      // Rentabilidade do CDB (% do CDI) - Input is the percentage value
-  lciLcaRatePercentageOfCdi: number | null;   // Rentabilidade da LCI/LCA (% do CDI) - Input is the percentage value
+  selicRate: number | null;          
+  cdiRate: number | null;            
+  ipcaRate: number | null;           
+  trRate: number | null;             
+  tesouroPrefixadoNominalRate: number | null; 
+  tesouroCustodyFeeB3: number | null;        
+  tesouroIpcaRealRate: number | null;        
+  cdbRatePercentageOfCdi: number | null;      
+  lciLcaRatePercentageOfCdi: number | null;   
 }
 
 export interface InvestmentCalculationResult {
   name: string;
-  finalGrossBalance: number; // Balance after all contributions and interest, before IR (and after operational fees)
-  netBalance: number;        // Final balance after IR
+  finalGrossBalance: number; 
+  netBalance: number;        
   totalInvested: number;
-  totalInterestEarned: number; // Gross interest earned over the period (after operational fees, before IR)
-  irRateAppliedPercent: number; // IR rate applied, e.g., 15 for 15%
+  totalInterestEarned: number; 
+  irRateAppliedPercent: number; 
   irAmount: number;
-  effectiveAnnualRateUsedPercent?: number; // Informational: effective annual rate used in calculation (after op. fees, before IR)
-  effectiveMonthlyRateUsedPercent?: number; // Informational: effective monthly rate used in calculation (after op. fees, before IR)
-  operationalFeesPaid?: number; // Total operational fees (custody, admin) estimated over the period
+  effectiveAnnualRateUsedPercent?: number; 
+  effectiveMonthlyRateUsedPercent?: number; 
+  operationalFeesPaid?: number; 
 }
 
-// Type for Bitcoin Price
 export interface BitcoinPriceHistoryPoint {
-  timestamp: number; // Unix timestamp (ms)
-  price: number;     // Price at the given timestamp
+  timestamp: number; 
+  price: number;     
 }
 
 export interface BtcPriceInfo {
   brl: number;
   usd: number;
-  lastUpdatedAt: number; // Unix timestamp for when the price was last updated
+  lastUpdatedAt: number; 
   marketCapUsd?: number;
   marketCapBrl?: number;
   totalSupply?: number;
   circulatingSupply?: number;
-  description?: string; // HTML string for description
+  description?: string; 
   usd_24h_change?: number;
   brl_24h_change?: number;
 }
 
-// Type for USDT Price
 export interface UsdtPriceInfo {
   brl: number;
   usd: number;
-  lastUpdatedAt: number; // Unix timestamp
+  lastUpdatedAt: number; 
   marketCapUsd?: number;
   marketCapBrl?: number;
   totalSupply?: number;
   circulatingSupply?: number;
-  description?: string; // HTML string for description
+  description?: string; 
   usd_24h_change?: number;
   brl_24h_change?: number;
 }
 
-// Type for USD/BRL Exchange Rate
 export interface UsdBrlRateInfo {
-  rate: number; // PTAX Venda rate
-  dateTime: string; // ISO 8601 string for the date/time of the rate
+  rate: number; 
+  dateTime: string; 
 }
 
-// Types for Fund Analyzer - Mantida para não quebrar importações, mas não será foco.
 export interface FundInfo {
-  id: string; // CNPJ can serve as ID
-  cnpj: string; // Raw CNPJ: "00111222000133"
+  id: string; 
+  cnpj: string; 
   name: string;
   administratorName?: string;
   managerName?: string;
-  fundClass?: string; // e.g., "Fundo de Ações", "Fundo de Renda Fixa", "Fundo Multimercado"
-  netAssetValue?: number; // VL_PATRIM_LIQ
-  quotaValue?: number; // VL_QUOTA
-  reportDate?: string; // DT_COMPTC (e.g., "2023-10-20")
-  adminFee?: number; // TAXA_ADM (e.g., 2 for 2%)
-  performanceFee?: string; // TAXA_PERFM (e.g., "20% sobre o que exceder 100% do CDI")
-  numQuotaholders?: number; // NR_COTST
-  targetAudience?: string; // PBLICO_ALVO
-  initialInvestment?: number; // APLIC_MIN
+  fundClass?: string; 
+  netAssetValue?: number; 
+  quotaValue?: number; 
+  reportDate?: string; 
+  adminFee?: number; 
+  performanceFee?: string; 
+  numQuotaholders?: number; 
+  targetAudience?: string; 
+  initialInvestment?: number; 
 }
 
-// Types for MacroEconomicPanel Indicator Modal
 export interface IndicatorModalData {
   title: string;
-  sgsCode?: string | number; // SGS Code or special identifier like 'PTAX', 'FOCUS_ONLY'
+  sgsCode?: string | number; 
   description: string;
   currentValue: string | number | null | undefined;
-  valueSuffix?: string; // General suffix like '% a.a.'
+  valueSuffix?: string; 
   referenceText?: string;
   sourceText?: string;
-  isUSD?: boolean; // For chart tooltip currency formatting for USD values
-  isPercentage?: boolean; // If the value is a percentage
-  isBillions?: boolean; // For chart tooltip formatting of billions
-  valuePrecision?: number; // Default precision for display
-  historicalSeriesName?: string; // Name for the chart series
-  historicalYAxisLabel?: string; // Label for Y-axis in historical chart
-  isDailyData?: boolean; // Hint for chart date formatting for daily series like CDI
-  seriesType?: 'PTAX' | 'SGS_CALCULATED_ANNUAL_CDI' | 'SGS_PERCENT_VAR_FROM_INDEX'; // For modal fetching logic
-
-  // Card-specific display properties
-  displayDivisor?: number; // Value to divide currentValue by for card display
-  displayPrefix?: string; // Prefix for card display, e.g. "R$ "
-  displaySuffixOverride?: string; // Suffix for card display, e.g. " tri R$", overrides valueSuffix
+  isUSD?: boolean; 
+  isPercentage?: boolean; 
+  isBillions?: boolean; 
+  valuePrecision?: number; 
+  historicalSeriesName?: string; 
+  historicalYAxisLabel?: string; 
+  isDailyData?: boolean; 
+  seriesType?: 'PTAX' | 'SGS_CALCULATED_ANNUAL_CDI' | 'SGS_PERCENT_VAR_FROM_INDEX'; 
+  displayDivisor?: number; 
+  displayPrefix?: string; 
+  displaySuffixOverride?: string; 
 }
 
 export interface HistoricalDataPoint {
-  date: string; // Store as YYYY-MM-DD for easier sorting and parsing (or timestamp for Recharts)
+  date: string; 
   value: number;
 }
 
-// utils/economicIndicatorsAPI.ts related types
 export interface FetchedEconomicIndicators {
   selicRate?: number;
   selicReferenceDate?: string; 
@@ -268,81 +243,67 @@ export interface FetchedEconomicIndicators {
   trReferenceDate?: string; 
   igpmRate?: number; 
   igpmReferenceDate?: string; 
-  
   netPublicDebtToGdpSGS4513?: number; 
   netPublicDebtToGdpSGS4513ReferenceDate?: string; 
-  
   ibcBrRate?: number; 
   ibcBrReferenceDate?: string; 
   internationalReserves?: number; 
   internationalReservesReferenceDate?: string; 
-  
   goldReservesSGS3552MillionsUSD?: number; 
   goldReservesSGS3552MillionsUSDReferenceDate?: string; 
-  
   gdpProjection?: number;
   gdpProjectionSourceType?: 'projection_focus';
   gdpProjectionReferenceDate?: string;
-  
   grossGeneralGovernmentDebtToGdp?: number; 
   grossGeneralGovernmentDebtToGdpReferenceDate?: string; 
-
-  m2BalanceSGS27842?: number; // M2 Balance (Milhares de R$) - SGS 27842
-  m2BalanceSGS27842ReferenceDate?: string; // MM/YYYY
-
+  m2BalanceSGS27842?: number; 
+  m2BalanceSGS27842ReferenceDate?: string; 
   lastUpdated?: string;
   errors?: string[];
 }
 
+export type DateRangePreset = '1M' | '6M' | '1Y' | '5Y' | 'MAX' | ''; 
 
-export type DateRangePreset = '1M' | '6M' | '1Y' | '5Y' | 'MAX' | ''; // Added empty string for custom range
-
-// For Dynamic Historical Averages in InputForm
 export interface DynamicHistoricalAverage {
   value: number | null;
   isLoading: boolean;
   error: string | null;
-  sourceDateRange?: string; // e.g., "Jan/2004 - Dez/2023"
+  sourceDateRange?: string; 
   sourceSgsCode?: string | number;
 }
 
-// For Macro Economic Terminal
 export interface AvailableIndicatorForTerminal {
-  id: string; // Unique ID for the indicator, e.g., 'SELIC_META', 'PTAX_VENDA'
-  name: string; // User-friendly name, e.g., "Selic (Meta)"
-  sgsCode: string | number; // Actual SGS code or special identifier like 'PTAX'
+  id: string; 
+  name: string; 
+  sgsCode: string | number; 
   seriesType?: IndicatorModalData['seriesType']; 
   historicalYAxisLabel?: string;
   isDailyData?: boolean;
-  defaultChartColor?: string; // Optional: a default color for this indicator line
-  dataKey: string; // Unique key for Recharts data, e.g., 'selicValue', 'ptaxValue'
+  defaultChartColor?: string; 
+  dataKey: string; 
 }
 
-// This will be the structure for the Recharts data prop after merging
 export interface MergedTerminalChartDataPoint {
-  timestamp: number; // X-axis (date as timestamp)
-  // Dynamically add keys based on selected indicators
+  timestamp: number; 
   [dataKey: string]: number | null | undefined; 
 }
 
-
-// For RSS Stories Feed
 export interface NewsItem {
-  id: string; // from <guid> or link
+  id: string; 
   title: string;
   link: string;
-  pubDate?: string; // Date string from RSS
-  description?: string; // Plain text or sanitized HTML
+  pubDate?: string; 
+  description?: string; 
   imageUrl?: string;
-  sourceName: string; // e.g., "G1 Economia"
+  sourceName: string; 
 }
 
 export interface StorySource {
-  id: string; // e.g., 'g1-economia'
-  name: string; // "G1 Economia"
+  id: string; 
+  name: string; 
   rssUrl: string;
-  iconUrl?: string; // URL to a logo/favicon for the source
+  iconUrl?: string; 
   items: NewsItem[];
   lastFetched?: Date;
-  color?: string; // Optional: A color for the story ring/icon
+  color?: string; 
 }

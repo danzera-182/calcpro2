@@ -1,10 +1,10 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { NewsItem, StorySource } from '../types';
+import { NewsItem, StorySource, ArticleForSummary } from '../types'; // Added ArticleForSummary
 import { Card } from './ui/Card';
 import StoryIcon from './ui/StoryIcon';
 import StoryViewer from './StoryViewer';
-import NewsSummaryCard from './ui/NewsSummaryCard'; // Import the new component
+import Button from './ui/Button'; // Added Button for "Resumir com IA"
 
 const INITIAL_SOURCES: Omit<StorySource, 'items' | 'lastFetched'>[] = [
   {
@@ -15,29 +15,26 @@ const INITIAL_SOURCES: Omit<StorySource, 'items' | 'lastFetched'>[] = [
     color: "#C4170C",
   },
   {
-    id: "valor-economico",
-    name: "Valor Econômico",
-    rssUrl: 'https://valor.globo.com/rss/ValorEconomico/economia',
-    iconUrl: "https://s.valorstatic.com.br/meta/valor-economico/images/favicon.ico",
-    color: "#00549f",
-  },
-  {
     id: "infomoney",
     name: "InfoMoney",
     rssUrl: 'https://www.infomoney.com.br/feed/',
     iconUrl: "https://www.infomoney.com.br/wp-content/uploads/2023/06/cropped-favicon-infomoney-novo-32x32.png",
     color: "#f39c12",
+  },
+  {
+    id: "cointelegraph-br",
+    name: "Cointelegraph BR",
+    rssUrl: 'https://br.cointelegraph.com/rss',
+    iconUrl: "https://br.cointelegraph.com/icons/icon-96x96.png", 
+    color: "#FDB913", 
   }
 ];
 
 const PROXY_BASE_URL = '/api/rss-proxy?url=';
-const SUMMARIZE_API_URL = '/api/summarize-news';
-const MAX_SUMMARIES_TO_SHOW = 3;
+const MAX_ITEMS_FOR_ANALYSIS = 6; // Number of items to show in "Principais Notícias"
 
-interface SummaryState {
-  summary: string | null;
-  isLoading: boolean;
-  error: string | null;
+interface RSSStoriesFeedProps {
+  onSelectArticleForSummary: (article: ArticleForSummary) => void;
 }
 
 const WarningIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
@@ -46,8 +43,7 @@ const WarningIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   </svg>
 );
 
-
-const RSSStoriesFeed: React.FC = () => {
+const RSSStoriesFeed: React.FC<RSSStoriesFeedProps> = ({ onSelectArticleForSummary }) => {
   const [storySources, setStorySources] = useState<StorySource[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -56,8 +52,7 @@ const RSSStoriesFeed: React.FC = () => {
   const [selectedSourceForViewer, setSelectedSourceForViewer] = useState<StorySource | null>(null);
   const [currentItemIndexInViewer, setCurrentItemIndexInViewer] = useState<number>(0);
 
-  const [highlightedNewsItems, setHighlightedNewsItems] = useState<NewsItem[]>([]);
-  const [summaries, setSummaries] = useState<Record<string, SummaryState>>({});
+  const [analysisNewsItems, setAnalysisNewsItems] = useState<NewsItem[]>([]);
 
   const parseRSSFeed = (xmlText: string, sourceName: string): NewsItem[] => {
     const parser = new DOMParser();
@@ -67,11 +62,7 @@ const RSSStoriesFeed: React.FC = () => {
     const errorNode = xmlDoc.querySelector("parsererror");
     if (errorNode) {
         console.error(`Error parsing XML for ${sourceName}:`, errorNode.textContent);
-        if (xmlText.toLowerCase().includes("error") || xmlText.toLowerCase().includes("failed") || xmlText.startsWith("{")) {
-            // Handled by fetch logic
-        } else {
-            setError(prev => prev ? `${prev}\nFalha ao processar feed de ${sourceName} (XML inválido).` : `Falha ao processar feed de ${sourceName} (XML inválido).`);
-        }
+        // Don't set global error here, let fetchAllFeeds aggregate it.
         return [];
     }
 
@@ -115,8 +106,7 @@ const RSSStoriesFeed: React.FC = () => {
   const fetchAllFeeds = useCallback(async () => {
     setIsLoading(true);
     setError(null);
-    setHighlightedNewsItems([]);
-    setSummaries({});
+    setAnalysisNewsItems([]);
     let allFetchedSources: StorySource[] = [];
     let aggregatedErrorMessages = "";
 
@@ -138,8 +128,11 @@ const RSSStoriesFeed: React.FC = () => {
             items: parsedItems,
             lastFetched: new Date(),
           });
+        } else if (!xmlText.trim().startsWith('<')) { // Check if non-XML was returned, parser might not throw for this
+            aggregatedErrorMessages += `Feed de ${initialSource.name} retornou conteúdo inválido.\n`;
         }
       } catch (e: any) {
+        console.error(`Error fetching/parsing ${initialSource.name}:`, e);
         aggregatedErrorMessages += `${e.message || `Erro desconhecido ao buscar ${initialSource.name}`}\n`;
       }
     }
@@ -149,11 +142,10 @@ const RSSStoriesFeed: React.FC = () => {
         setError(aggregatedErrorMessages.trim());
     }
     if(allFetchedSources.length === 0 && !aggregatedErrorMessages){
-        setError("Nenhuma notícia encontrada.");
+        setError("Nenhuma notícia encontrada ou todos os feeds falharam.");
     }
     setIsLoading(false);
 
-    // After fetching all feeds, select items for summarization
     if (allFetchedSources.length > 0) {
         const allNewsItems = allFetchedSources.flatMap(source => source.items);
         allNewsItems.sort((a, b) => {
@@ -161,55 +153,13 @@ const RSSStoriesFeed: React.FC = () => {
                 return (new Date(b.pubDate || 0).getTime()) - (new Date(a.pubDate || 0).getTime());
             } catch { return 0; }
         });
-        setHighlightedNewsItems(allNewsItems.slice(0, MAX_SUMMARIES_TO_SHOW));
+        setAnalysisNewsItems(allNewsItems.slice(0, MAX_ITEMS_FOR_ANALYSIS));
     }
   }, []); 
 
   useEffect(() => {
     fetchAllFeeds();
   }, [fetchAllFeeds]);
-
-  // Fetch summaries for highlighted news items
-  useEffect(() => {
-    if (highlightedNewsItems.length > 0) {
-      highlightedNewsItems.forEach(item => {
-        if (!summaries[item.id] || (!summaries[item.id].summary && !summaries[item.id].isLoading && !summaries[item.id].error)) {
-          setSummaries(prev => ({
-            ...prev,
-            [item.id]: { summary: null, isLoading: true, error: null }
-          }));
-
-          fetch(SUMMARIZE_API_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ articleUrl: item.link })
-          })
-          .then(res => {
-            if (!res.ok) {
-              return res.json().then(errData => {
-                throw new Error(errData.error || `HTTP error ${res.status}`);
-              });
-            }
-            return res.json();
-          })
-          .then(data => {
-            setSummaries(prev => ({
-              ...prev,
-              [item.id]: { summary: data.summary, isLoading: false, error: null }
-            }));
-          })
-          .catch(e => {
-            console.error(`Error summarizing ${item.link}:`, e);
-            setSummaries(prev => ({
-              ...prev,
-              [item.id]: { summary: null, isLoading: false, error: e.message || "Falha ao resumir." }
-            }));
-          });
-        }
-      });
-    }
-  }, [highlightedNewsItems, summaries]);
-
 
   const handleStoryIconClick = (source: StorySource) => {
     if (source.items.length > 0) {
@@ -233,6 +183,18 @@ const RSSStoriesFeed: React.FC = () => {
   
   const activeStorySources = storySources.filter(s => s.items && s.items.length > 0);
 
+  const formatPubDateForCard = (dateString?: string): string => {
+    if (!dateString) return '';
+    try {
+      const date = new Date(dateString);
+      return new Intl.DateTimeFormat('pt-BR', {
+        day: 'numeric', month: 'short', year: 'numeric'
+      }).format(date);
+    } catch (e) {
+      return dateString.substring(0,16); 
+    }
+  };
+
   const renderLoadingState = () => (
     <Card>
       <Card.Header><Card.Title>Feed de Notícias</Card.Title></Card.Header>
@@ -251,14 +213,13 @@ const RSSStoriesFeed: React.FC = () => {
       <Card.Header><Card.Title>Feed de Notícias</Card.Title></Card.Header>
       <Card.Content className="text-center py-10 text-red-600 dark:text-red-400">
         <p className="whitespace-pre-line">{errorMessage}</p>
-        <p className="text-xs mt-2">Verifique se os servidores (proxy e sumarizador) estão configurados e funcionando.</p>
       </Card.Content>
     </Card>
   );
 
   if (isLoading && activeStorySources.length === 0) return renderLoadingState();
-  if (error && activeStorySources.length === 0 && highlightedNewsItems.length === 0) return renderErrorState(error);
-  if (activeStorySources.length === 0 && highlightedNewsItems.length === 0 && !isLoading) {
+  if (error && activeStorySources.length === 0 && analysisNewsItems.length === 0) return renderErrorState(error);
+  if (activeStorySources.length === 0 && analysisNewsItems.length === 0 && !isLoading) {
      return renderErrorState(error || "Nenhuma notícia disponível.");
   }
 
@@ -282,7 +243,7 @@ const RSSStoriesFeed: React.FC = () => {
             <p className="text-xs text-center text-slate-500 dark:text-slate-400 mb-2">Atualizando feeds em segundo plano...</p>
           )}
           {activeStorySources.length > 0 ? (
-            <div className="flex space-x-4 overflow-x-auto py-3 px-1">
+            <div className="flex space-x-3 overflow-x-auto py-3 px-1 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent">
               {activeStorySources.map(source => (
                 <StoryIcon
                   key={source.id}
@@ -302,59 +263,55 @@ const RSSStoriesFeed: React.FC = () => {
         </Card.Content>
       </Card>
 
-      {/* News Summary Cards Section */}
-      {(highlightedNewsItems.length > 0 || (isLoading && summaries && Object.values(summaries).some(s => s.isLoading))) && (
+      {analysisNewsItems.length > 0 && (
         <div>
           <div className="flex items-center mb-4">
-            <h2 className="text-xl font-semibold text-slate-700 dark:text-slate-200">Notícias em Destaque com IA</h2>
+            <h2 className="text-xl font-semibold text-slate-700 dark:text-slate-200">Principais Notícias para Análise</h2>
             <span 
               className="ml-2 inline-flex items-center bg-amber-100 dark:bg-amber-700/50 text-amber-700 dark:text-amber-300 text-xs font-semibold px-2 py-0.5 rounded-full"
-              title="Esta funcionalidade está em fase de testes e usa IA para resumir."
+              title="Esta funcionalidade está em fase de testes e usa IA para resumir sob demanda."
             >
               <WarningIcon className="w-3 h-3 mr-1 text-amber-500 dark:text-amber-400" />
-              EM TESTES (IA)
+              EM TESTES
             </span>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {highlightedNewsItems.map(item => {
-              const summaryState = summaries[item.id] || { summary: null, isLoading: true, error: null };
-              return (
-                <NewsSummaryCard
-                  key={item.id}
-                  item={item}
-                  summary={summaryState.summary}
-                  isLoadingSummary={summaryState.isLoading}
-                  summaryError={summaryState.error}
-                />
-              );
-            })}
-            {/* Placeholder cards for loading state if highlightedNewsItems is empty but summaries are loading */}
-            {highlightedNewsItems.length === 0 && isLoading && Array.from({length: MAX_SUMMARIES_TO_SHOW}).map((_, index) => {
-                const placeholderItem: NewsItem = {
-                    id: `placeholder-${index}`,
-                    title: "Carregando resumo...",
-                    link: "#",
-                    sourceName: "IA",
-                };
-                 return (
-                    <NewsSummaryCard
-                        key={placeholderItem.id}
-                        item={placeholderItem}
-                        summary={null}
-                        isLoadingSummary={true}
-                        summaryError={null}
-                    />
-                );
-            })}
+          <div className="space-y-4">
+            {analysisNewsItems.map(item => (
+              <Card key={item.id} className="p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                {item.imageUrl && (
+                  <img 
+                    src={item.imageUrl} 
+                    alt="" // Decorative, title is main info
+                    className="w-full sm:w-24 h-24 sm:h-auto object-cover rounded-md flex-shrink-0"
+                    onError={(e) => e.currentTarget.style.display = 'none'}
+                  />
+                )}
+                <div className="flex-grow">
+                  <h3 className="text-md font-semibold text-slate-800 dark:text-slate-100 hover:text-blue-600 dark:hover:text-blue-400">
+                    <a href={item.link} target="_blank" rel="noopener noreferrer">{item.title}</a>
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    {item.sourceName} {item.pubDate && `• ${formatPubDateForCard(item.pubDate)}`}
+                  </p>
+                </div>
+                <Button 
+                  variant="secondary" 
+                  size="sm" 
+                  onClick={() => onSelectArticleForSummary(item)}
+                  className="mt-2 sm:mt-0 sm:ml-auto flex-shrink-0"
+                >
+                  Resumir com IA
+                </Button>
+              </Card>
+            ))}
           </div>
         </div>
       )}
-      {activeStorySources.length === 0 && highlightedNewsItems.length === 0 && !isLoading && error && (
+      {activeStorySources.length === 0 && analysisNewsItems.length === 0 && !isLoading && error && (
          <p className="text-sm text-center text-red-500 dark:text-red-400 py-3">
-            Erro ao carregar notícias em destaque: {error}
+            Erro ao carregar notícias: {error}
          </p>
       )}
-
 
       {isViewerOpen && selectedSourceForViewer && selectedSourceForViewer.items.length > 0 && (
         <StoryViewer

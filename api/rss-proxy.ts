@@ -1,15 +1,15 @@
-
 // File: api/rss-proxy.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 // Lista de domínios de RSS permitidos para segurança
 const ALLOWED_RSS_DOMAINS = [
   'g1.globo.com',
-  'valor.globo.com',
+  // 'valor.globo.com', // Removido conforme solicitado
   'www.infomoney.com.br',
   'feeds.folha.uol.com.br',
   'exame.com',
   'www.estadao.com.br',
+  'br.cointelegraph.com', // Adicionado Cointelegraph Brasil
   // Adicione outros domínios de RSS confiáveis aqui
 ];
 
@@ -48,7 +48,7 @@ export default async function handler(
   }
 
   if (!ALLOWED_RSS_DOMAINS.includes(parsedUrl.hostname)) {
-    console.warn(`Attempt to access disallowed domain: ${parsedUrl.hostname}`);
+    console.warn(`Attempt to access disallowed domain: ${parsedUrl.hostname} from URL: ${targetUrl}`);
     return res.status(403).json({ error: 'Access to this RSS feed domain is not allowed.' });
   }
 
@@ -58,7 +58,7 @@ export default async function handler(
         'User-Agent': 'TheWealthLab-RSS-Proxy/1.0 (+https://calcpro2.vercel.app)',
         'Accept': 'application/rss+xml, application/xml, text/xml',
       },
-      redirect: 'follow', // Seguir redirecionamentos
+      redirect: 'follow', 
     });
 
     if (!fetchResponse.ok) {
@@ -73,10 +73,9 @@ export default async function handler(
     const responseContentType = fetchResponse.headers.get('content-type');
     if (!responseContentType || (!responseContentType.includes('xml') && !responseContentType.includes('rss'))) {
         console.warn(`Received non-XML content-type (${responseContentType}) from ${targetUrl}`);
-        // Não vamos bloquear, mas é um aviso. A validação do XML abaixo pode pegar problemas.
     }
     
-    const rssXmlText = await fetchResponse.text();
+    const rssXmlText = await fetchResponse.text(); // Line 79 in some counts, this line is critical
 
     if (!rssXmlText.trim().startsWith('<')) {
         console.error(`Received non-XML content from ${targetUrl}:`, rssXmlText.substring(0, 500));
@@ -86,17 +85,15 @@ export default async function handler(
         });
     }
     
-    // Determinar o charset da resposta original, se disponível, e usá-lo
-    let charset = 'utf-8'; // Default
+    let charset = 'utf-8'; 
     if (responseContentType) {
         const match = responseContentType.match(/charset=([^;]+)/i);
         if (match && match[1]) {
             charset = match[1].toLowerCase();
         }
     }
-    // Garante que o Content-Type retornado seja XML com o charset correto
     res.setHeader('Content-Type', `application/xml; charset=${charset}`);
-    res.setHeader('Cache-Control', 'public, s-maxage=900, stale-while-revalidate=300'); // Cache de 15 min
+    res.setHeader('Cache-Control', 'public, s-maxage=900, stale-while-revalidate=300'); 
     
     return res.status(200).send(rssXmlText);
 

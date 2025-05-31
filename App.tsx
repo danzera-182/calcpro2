@@ -1,6 +1,6 @@
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { InputFormData, ScenarioData, AppView, BtcPriceInfo, UsdtPriceInfo } from './types';
+import { InputFormData, ScenarioData, AppView, BtcPriceInfo, UsdtPriceInfo, ArticleForSummary } from './types'; // Added ArticleForSummary
 import { DEFAULT_INPUT_VALUES } from './constants';
 import { calculateProjection } from './utils/calculations';
 import InputForm from './components/InputForm';
@@ -16,7 +16,8 @@ import MacroEconomicPanel from './components/MacroEconomicPanel';
 import TerminalView from './components/TerminalView';
 import BitcoinDetailedChart from './components/BitcoinDetailedChart';
 import UsdtDetailedChart from './components/UsdtDetailedChart';
-import RSSStoriesFeed from './components/RSSStoriesFeed'; // Import the new component
+import RSSStoriesFeed from './components/RSSStoriesFeed';
+import NewsSummaryDetailView from './components/NewsSummaryDetailView'; // Added import for new view
 import { fetchLatestBitcoinPrice, fetchLatestUsdtPrice } from './utils/economicIndicatorsAPI';
 import { formatCurrency, formatNumberForDisplay, formatNumber } from './utils/formatters';
 
@@ -29,7 +30,8 @@ const viewToPathMap: Record<AppView, string> = {
   macroEconomicTerminal: '/macro-economic-terminal',
   bitcoinChartDetail: '/bitcoin',
   usdtChartDetail: '/usdt',
-  rssStoriesFeed: '/stories-feed', // Added path for RSS Stories Feed
+  rssStoriesFeed: '/stories-feed',
+  newsSummaryDetail: '/news-summary', // Added path for News Summary Detail
 };
 
 const pathToViewMap: { [key: string]: AppView } = Object.fromEntries(
@@ -47,19 +49,18 @@ const getAppViewFromHash = (hashInput: string | null | undefined): AppView => {
   return pathToViewMap[path] || 'selector';
 };
 
-// Define WarningIcon here if not globally available
 const WarningIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
   </svg>
 );
 
-
 const App: React.FC = () => {
   const [inputValues, setInputValues] = useState<InputFormData>(DEFAULT_INPUT_VALUES);
   const [scenarioData, setScenarioData] = useState<ScenarioData | null>(null);
   
   const [activeView, setActiveView] = useState<AppView>('selector'); 
+  const [articleForSummary, setArticleForSummary] = useState<ArticleForSummary | null>(null); // State for selected article
 
   const [isLoading, setIsLoading] = useState<boolean>(false); 
 
@@ -71,7 +72,6 @@ const App: React.FC = () => {
   const [isLoadingUsdtPrice, setIsLoadingUsdtPrice] = useState<boolean>(false);
   const [usdtPriceError, setUsdtPriceError] = useState<string | null>(null);
 
-  // Effect 1: Synchronize URL hash FROM activeView state
   useEffect(() => {
     const newPath = viewToPathMap[activeView] || '/';
     const hashPath = (newPath === '/') ? '/' : newPath.substring(1);
@@ -90,19 +90,21 @@ const App: React.FC = () => {
     }
   }, [activeView]);
 
-  // Effect 2: Synchronize activeView state FROM URL hash (on load and on hash change)
   useEffect(() => {
     const getViewFromCurrentHash = () => {
         if (typeof window !== 'undefined' && window.location) {
             return getAppViewFromHash(window.location.hash);
         }
-        return 'selector'; // Fallback if window.location is not available
+        return 'selector'; 
     };
 
     const handleHashChange = () => {
       const newViewFromHash = getViewFromCurrentHash();
       setActiveView(currentView => {
         if (newViewFromHash !== currentView) {
+          if (newViewFromHash !== 'newsSummaryDetail') { // Prevent clearing article on direct nav to summary (though not ideal)
+            setArticleForSummary(null);
+          }
           return newViewFromHash;
         }
         return currentView;
@@ -259,9 +261,11 @@ const App: React.FC = () => {
         return "Análise detalhada da cotação e informações do USDT (Tether).";
       case 'rssStoriesFeed':
         return "Acompanhe notícias do mercado em formato de stories.";
+      case 'newsSummaryDetail':
+        return articleForSummary ? `Resumo IA: ${articleForSummary.title.substring(0,30)}...` : "Resumo de Notícia com IA";
       case 'selector':
       default:
-        return null; // Não mostrar subtítulo na tela de seleção ou em views desconhecidas
+        return null;
     }
   };
   
@@ -277,6 +281,11 @@ const App: React.FC = () => {
     } catch (e) {
       return "Horário indisponível";
     }
+  };
+
+  const handleSelectArticleForSummary = (article: ArticleForSummary) => {
+    setArticleForSummary(article);
+    setActiveView('newsSummaryDetail');
   };
 
   const renderContent = () => {
@@ -345,7 +354,7 @@ const App: React.FC = () => {
                 </Card.Content>
               </Card>
               <Card 
-                className="cursor-pointer hover:shadow-premium-hover transition-shadow duration-200 ease-in-out transform hover:-translate-y-1 md:col-span-1 lg:col-span-1" // Default span
+                className="cursor-pointer hover:shadow-premium-hover transition-shadow duration-200 ease-in-out transform hover:-translate-y-1 md:col-span-1 lg:col-span-1"
                 onClick={() => setActiveView('macroEconomicPanel')}
                 aria-label="Acessar Painel Macroeconômico"
               >
@@ -360,7 +369,7 @@ const App: React.FC = () => {
                 </Card.Content>
               </Card>
                <Card 
-                className="cursor-pointer hover:shadow-premium-hover transition-shadow duration-200 ease-in-out transform hover:-translate-y-1 md:col-span-1 lg:col-span-2" // Span more on larger screens
+                className="cursor-pointer hover:shadow-premium-hover transition-shadow duration-200 ease-in-out transform hover:-translate-y-1 md:col-span-1 lg:col-span-2"
                 onClick={() => setActiveView('rssStoriesFeed')}
                 aria-label="Acessar Feed de Notícias (Stories)"
               >
@@ -709,17 +718,27 @@ const App: React.FC = () => {
               </Card>
             </>
           );
-      case 'rssStoriesFeed': // Added case for RSS Stories Feed
+      case 'rssStoriesFeed':
         return (
           <>
             <Button onClick={() => setActiveView('selector')} variant="secondary" size="md" className="mb-6" aria-label="Voltar para seleção de ferramentas">
               &larr; Voltar para seleção de ferramentas
             </Button>
-            <RSSStoriesFeed />
+            <RSSStoriesFeed onSelectArticleForSummary={handleSelectArticleForSummary} />
           </>
         );
+      case 'newsSummaryDetail':
+        if (!articleForSummary) {
+             setActiveView('rssStoriesFeed'); // Should not happen if navigation is correct
+             return null;
+        }
+        return (
+            <NewsSummaryDetailView 
+                article={articleForSummary}
+                onBack={() => { setArticleForSummary(null); setActiveView('rssStoriesFeed'); }}
+            />
+        );
       default:
-        // Fallback to selector if view is unknown
         if (activeView !== 'selector') {
             setActiveView('selector'); 
         }
@@ -746,8 +765,8 @@ const App: React.FC = () => {
                 <title id="wealthLabLogoTitleV9">The Wealth Lab Logo</title>
                 <defs>
                   <linearGradient id="labTextGradient" x1="0%" y1="0%" x2="100%" y2="100%" gradientTransform="translate(0 0)">
-                    <stop offset="0%" style={{stopColor: '#3B82F6', stopOpacity: 1}} /> {/* blue-500 */}
-                    <stop offset="100%" style={{stopColor: '#1D4ED8', stopOpacity: 1}} /> {/* blue-700 */}
+                    <stop offset="0%" style={{stopColor: '#3B82F6', stopOpacity: 1}} />
+                    <stop offset="100%" style={{stopColor: '#1D4ED8', stopOpacity: 1}} />
                     <animateTransform
                       attributeName="gradientTransform"
                       type="translate"
