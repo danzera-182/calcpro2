@@ -95,13 +95,13 @@ const BitcoinRateDisplay: React.FC<BitcoinRateDisplayProps> = ({ priceInfo, isLo
         {/* Right Group: Price Info (USD, BRL) + Timestamp + 24h Change */}
         <div className="flex flex-col items-end text-right">
           <p className="text-md sm:text-lg font-bold text-slate-800 dark:text-slate-100">
-            {formatCurrency(priceInfo.usd, 'USD')}
+            {priceInfo.usd != null ? formatCurrency(priceInfo.usd, 'USD') : 'N/A'}
           </p>
           <p className="text-xs text-slate-600 dark:text-slate-300">
-            {formatCurrency(priceInfo.brl)}
+            {priceInfo.brl != null ? formatCurrency(priceInfo.brl) : 'N/A'}
           </p>
            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            {formatUnixTimestamp(priceInfo.lastUpdatedAt)}
+            {priceInfo.lastUpdatedAt != null ? formatUnixTimestamp(priceInfo.lastUpdatedAt) : 'N/A'}
           </p>
           {usdChange !== undefined && (
             <p className={`text-xs mt-0.5 flex items-center ${changeColorClass}`}>

@@ -7,23 +7,51 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [theme, setTheme] = useState<Theme>(() => {
     if (typeof window !== 'undefined') {
-      const storedTheme = localStorage.getItem('theme') as Theme | null;
-      if (storedTheme) {
-        return storedTheme;
+      try {
+        const storedTheme = localStorage.getItem('theme') as Theme | null;
+        // Validate that the stored theme is actually one of the expected values
+        if (storedTheme && (storedTheme === 'light' || storedTheme === 'dark')) {
+          return storedTheme;
+        }
+      } catch (e) {
+        console.warn("Error accessing localStorage for theme:", e);
+        // Fall through to use matchMedia or default
       }
-      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+
+      try {
+        // Check if matchMedia is available and is a function
+        if (window.matchMedia && typeof window.matchMedia === 'function') {
+          return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+      } catch (e) {
+        console.warn("Error accessing window.matchMedia for theme:", e);
+        // Fall through to default
+      }
+      return 'light'; // Default if localStorage and matchMedia fail or are unavailable
     }
-    return 'light'; // Default for SSR or non-browser environments
+    return 'light'; // Default for non-browser environments
   });
 
   useEffect(() => {
-    const root = window.document.documentElement;
-    if (theme === 'dark') {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
+    try {
+      if (typeof window !== 'undefined' && window.document && window.document.documentElement) {
+        const root = window.document.documentElement;
+        if (theme === 'dark') {
+          root.classList.remove('light'); // Ensure light is removed if dark is added
+          root.classList.add('dark');
+        } else {
+          root.classList.remove('dark'); // Ensure dark is removed if light is added
+          root.classList.add('light');
+        }
+        
+        // Also guard localStorage access here
+        if (window.localStorage) {
+          localStorage.setItem('theme', theme);
+        }
+      }
+    } catch (e) {
+      console.warn("Error applying theme or saving to localStorage:", e);
     }
-    localStorage.setItem('theme', theme);
   }, [theme]);
 
   const toggleTheme = () => {

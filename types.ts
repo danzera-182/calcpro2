@@ -1,3 +1,4 @@
+
 export interface InputFormData {
   initialInvestment: number;
   contributionValue: number; // Value of the contribution (always monthly)
@@ -116,7 +117,16 @@ export interface FixedIncomeResult {
 
 
 // Type for App View
-export type AppView = 'selector' | 'compoundInterest' | 'fixedIncomeComparator' | 'comprehensiveComparator' | 'macroEconomicPanel' | 'macroEconomicTerminal' | 'bitcoinChartDetail' | 'usdtChartDetail';
+export type AppView = 
+  'selector' | 
+  'compoundInterest' | 
+  'fixedIncomeComparator' | 
+  'comprehensiveComparator' | 
+  'macroEconomicPanel' | 
+  'macroEconomicTerminal' | 
+  'bitcoinChartDetail' | 
+  'usdtChartDetail' |
+  'rssStoriesFeed'; // Added new view for RSS Stories
 
 // Types for Comprehensive Comparator
 export type InvestmentPeriodUnit = 'months' | 'years';
@@ -313,4 +323,26 @@ export interface MergedTerminalChartDataPoint {
   timestamp: number; // X-axis (date as timestamp)
   // Dynamically add keys based on selected indicators
   [dataKey: string]: number | null | undefined; 
+}
+
+
+// For RSS Stories Feed
+export interface NewsItem {
+  id: string; // from <guid> or link
+  title: string;
+  link: string;
+  pubDate?: string; // Date string from RSS
+  description?: string; // Plain text or sanitized HTML
+  imageUrl?: string;
+  sourceName: string; // e.g., "G1 Economia"
+}
+
+export interface StorySource {
+  id: string; // e.g., 'g1-economia'
+  name: string; // "G1 Economia"
+  rssUrl: string;
+  iconUrl?: string; // URL to a logo/favicon for the source
+  items: NewsItem[];
+  lastFetched?: Date;
+  color?: string; // Optional: A color for the story ring/icon
 }

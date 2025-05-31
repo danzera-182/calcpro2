@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { InputFormData, ScenarioData, AppView, BtcPriceInfo, UsdtPriceInfo } from './types.ts';
 import { DEFAULT_INPUT_VALUES } from './constants.ts';
 import { calculateProjection } from './utils/calculations.ts';
@@ -15,14 +15,45 @@ import UsdtRateDisplay from './components/UsdtRateDisplay.tsx';
 import MacroEconomicPanel from './components/MacroEconomicPanel.tsx'; 
 import TerminalView from './components/TerminalView.tsx';
 import BitcoinDetailedChart from './components/BitcoinDetailedChart.tsx';
-import UsdtDetailedChart from './components/UsdtDetailedChart.tsx'; // Added
+import UsdtDetailedChart from './components/UsdtDetailedChart.tsx';
+import RSSStoriesFeed from './components/RSSStoriesFeed.tsx'; // Import the new component
 import { fetchLatestBitcoinPrice, fetchLatestUsdtPrice } from './utils/economicIndicatorsAPI.ts';
 import { formatCurrency, formatNumberForDisplay, formatNumber } from './utils/formatters.ts';
+
+const viewToPathMap: Record<AppView, string> = {
+  selector: '/',
+  compoundInterest: '/compound-interest',
+  fixedIncomeComparator: '/fixed-income-comparator',
+  comprehensiveComparator: '/comprehensive-comparator',
+  macroEconomicPanel: '/macro-economic-panel',
+  macroEconomicTerminal: '/macro-economic-terminal',
+  bitcoinChartDetail: '/bitcoin',
+  usdtChartDetail: '/usdt',
+  rssStoriesFeed: '/stories-feed', // Added path for RSS Stories Feed
+};
+
+const pathToViewMap: { [key: string]: AppView } = Object.fromEntries(
+  Object.entries(viewToPathMap).map(([view, path]) => [path, view as AppView])
+);
+
+const getAppViewFromHash = (hashInput: string | null | undefined): AppView => {
+  const hash = typeof hashInput === 'string' ? hashInput : ''; 
+  let path = hash.startsWith('#') ? hash.substring(1) : hash;
+  if (path === '' || path === '/') {
+    path = '/';
+  } else if (!path.startsWith('/')) {
+    path = `/${path}`;
+  }
+  return pathToViewMap[path] || 'selector';
+};
+
 
 const App: React.FC = () => {
   const [inputValues, setInputValues] = useState<InputFormData>(DEFAULT_INPUT_VALUES);
   const [scenarioData, setScenarioData] = useState<ScenarioData | null>(null);
-  const [activeView, setActiveView] = useState<AppView>('selector');
+  
+  const [activeView, setActiveView] = useState<AppView>('selector'); 
+
   const [isLoading, setIsLoading] = useState<boolean>(false); 
 
   const [bitcoinPriceInfo, setBitcoinPriceInfo] = useState<BtcPriceInfo | null>(null);
@@ -32,6 +63,64 @@ const App: React.FC = () => {
   const [usdtPriceInfo, setUsdtPriceInfo] = useState<UsdtPriceInfo | null>(null);
   const [isLoadingUsdtPrice, setIsLoadingUsdtPrice] = useState<boolean>(false);
   const [usdtPriceError, setUsdtPriceError] = useState<string | null>(null);
+
+  // Effect 1: Synchronize URL hash FROM activeView state
+  useEffect(() => {
+    const newPath = viewToPathMap[activeView] || '/';
+    const hashPath = (newPath === '/') ? '/' : newPath.substring(1);
+    const targetHash = `#${hashPath}`;
+
+    if (typeof window !== 'undefined' && window.location && window.location.hash !== targetHash) {
+      try {
+        if (targetHash === '#/' && (window.location.hash === '' || window.location.hash === '#')) {
+            history.pushState(null, '', '#/');
+        } else {
+            history.pushState(null, '', targetHash);
+        }
+      } catch (e) {
+        console.warn("Error manipulating history (pushState):", e);
+      }
+    }
+  }, [activeView]);
+
+  // Effect 2: Synchronize activeView state FROM URL hash (on load and on hash change)
+  useEffect(() => {
+    const getViewFromCurrentHash = () => {
+        if (typeof window !== 'undefined' && window.location) {
+            return getAppViewFromHash(window.location.hash);
+        }
+        return 'selector'; // Fallback if window.location is not available
+    };
+
+    const handleHashChange = () => {
+      const newViewFromHash = getViewFromCurrentHash();
+      setActiveView(currentView => {
+        if (newViewFromHash !== currentView) {
+          return newViewFromHash;
+        }
+        return currentView;
+      });
+    };
+    
+    if (typeof window !== 'undefined' && window.location) {
+        const initialView = getViewFromCurrentHash();
+        setActiveView(initialView);
+        if (initialView === 'selector' && window.location.hash !== '#/' && (window.location.hash === '' || window.location.hash === '#')) {
+            try {
+                history.replaceState(null, '', '#/'); 
+            } catch (e) {
+                console.warn("Error manipulating history (replaceState):", e);
+            }
+        }
+        window.addEventListener('hashchange', handleHashChange);
+    }
+
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('hashchange', handleHashChange);
+      }
+    };
+  }, []);
 
 
   const handleInputChange = useCallback((newInputValues: Partial<InputFormData>) => {
@@ -67,7 +156,6 @@ const App: React.FC = () => {
         }
       }
 
-
       const projectionResult = calculateProjection({
           ...inputValues,
       });
@@ -83,8 +171,6 @@ const App: React.FC = () => {
   }, [inputValues]);
 
   useEffect(() => {
-    // Fetch detailed data if on the specific chart view and data isn't fully loaded
-    // For selector view, fetch only if basic data isn't available or errored.
     const shouldFetchBtcDetailed = activeView === 'bitcoinChartDetail' && (!bitcoinPriceInfo || !bitcoinPriceInfo.description);
     const shouldFetchUsdtDetailed = activeView === 'usdtChartDetail' && (!usdtPriceInfo || !usdtPriceInfo.description);
 
@@ -93,7 +179,6 @@ const App: React.FC = () => {
     
     const needsBtcFetch = shouldFetchBtcDetailed || shouldFetchBtcSelector;
     const needsUsdtFetch = shouldFetchUsdtDetailed || shouldFetchUsdtSelector;
-
 
     if (needsBtcFetch || needsUsdtFetch) {
       const loadFinancialData = async () => {
@@ -122,14 +207,14 @@ const App: React.FC = () => {
           const [btcResult, usdtResult] = await Promise.all(promises);
 
           if (needsBtcFetch) {
-            if (btcResult) { 
+            if (btcResult && btcResult.usd !== undefined && btcResult.brl !== undefined) { 
               setBitcoinPriceInfo(btcResult as BtcPriceInfo);
             } else {
               setBitcoinPriceError("Cotação do Bitcoin não disponível.");
             }
           }
           if (needsUsdtFetch) {
-            if (usdtResult) {
+            if (usdtResult && usdtResult.usd !== undefined && usdtResult.brl !== undefined) {
               setUsdtPriceInfo(usdtResult as UsdtPriceInfo);
             } else {
               setUsdtPriceError("Cotação do USDT não disponível.");
@@ -165,6 +250,8 @@ const App: React.FC = () => {
         return "Análise detalhada da cotação e informações do Bitcoin.";
       case 'usdtChartDetail':
         return "Análise detalhada da cotação e informações do USDT (Tether).";
+      case 'rssStoriesFeed':
+        return "Acompanhe notícias do mercado em formato de stories.";
       case 'selector':
       default:
         return "Suas ferramentas financeiras em um só lugar. Escolha uma opção abaixo para começar.";
@@ -185,7 +272,6 @@ const App: React.FC = () => {
     }
   };
 
-
   const renderContent = () => {
     switch (activeView) {
       case 'selector':
@@ -205,7 +291,7 @@ const App: React.FC = () => {
                 onClick={() => setActiveView('usdtChartDetail')}
               />
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6 sm:gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
               <Card 
                 className="cursor-pointer hover:shadow-premium-hover transition-shadow duration-200 ease-in-out transform hover:-translate-y-1"
                 onClick={() => setActiveView('compoundInterest')}
@@ -252,7 +338,7 @@ const App: React.FC = () => {
                 </Card.Content>
               </Card>
               <Card 
-                className="cursor-pointer hover:shadow-premium-hover transition-shadow duration-200 ease-in-out transform hover:-translate-y-1"
+                className="cursor-pointer hover:shadow-premium-hover transition-shadow duration-200 ease-in-out transform hover:-translate-y-1 md:col-span-1 lg:col-span-1" // Default span
                 onClick={() => setActiveView('macroEconomicPanel')}
                 aria-label="Acessar Painel Macroeconômico"
               >
@@ -264,6 +350,21 @@ const App: React.FC = () => {
                     Acompanhe os principais indicadores econômicos do Brasil, como Selic, CDI, IPCA, TR e Dólar.
                   </p>
                   <Button variant="primary" className="mt-4 w-full" tabIndex={-1}>Acessar Painel</Button>
+                </Card.Content>
+              </Card>
+               <Card 
+                className="cursor-pointer hover:shadow-premium-hover transition-shadow duration-200 ease-in-out transform hover:-translate-y-1 md:col-span-1 lg:col-span-2" // Span more on larger screens
+                onClick={() => setActiveView('rssStoriesFeed')}
+                aria-label="Acessar Feed de Notícias (Stories)"
+              >
+                <Card.Header>
+                  <Card.Title>📰 Feed de Notícias (Stories)</Card.Title>
+                </Card.Header>
+                <Card.Content>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                    Acompanhe as últimas notícias do mercado financeiro em um formato de stories interativo.
+                  </p>
+                  <Button variant="primary" className="mt-4 w-full" tabIndex={-1}>Ver Notícias</Button>
                 </Card.Content>
               </Card>
             </div>
@@ -438,8 +539,8 @@ const App: React.FC = () => {
                     <div className="p-4 bg-slate-100 dark:bg-slate-800 rounded-lg shadow-inner">
                         <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200 mb-2">Cotação Atual</h3>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-                            <p><strong className="text-slate-600 dark:text-slate-300">Preço (USD):</strong> {formatCurrency(bitcoinPriceInfo.usd, 'USD')}</p>
-                            <p><strong className="text-slate-600 dark:text-slate-300">Preço (BRL):</strong> {formatCurrency(bitcoinPriceInfo.brl)}</p>
+                            <p><strong className="text-slate-600 dark:text-slate-300">Preço (USD):</strong> {bitcoinPriceInfo.usd != null ? formatCurrency(bitcoinPriceInfo.usd, 'USD') : 'N/A'}</p>
+                            <p><strong className="text-slate-600 dark:text-slate-300">Preço (BRL):</strong> {bitcoinPriceInfo.brl != null ? formatCurrency(bitcoinPriceInfo.brl) : 'N/A'}</p>
                         </div>
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                             Última atualização: {formatUnixTimestampForDisplay(bitcoinPriceInfo.lastUpdatedAt)} (CoinGecko)
@@ -451,10 +552,10 @@ const App: React.FC = () => {
                   <div className="p-4 bg-slate-100 dark:bg-slate-800 rounded-lg shadow-inner">
                     <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200 mb-2">Dados de Mercado</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                      {bitcoinPriceInfo.marketCapUsd && <p><strong className="text-slate-600 dark:text-slate-300">Capitalização (USD):</strong> {formatCurrency(bitcoinPriceInfo.marketCapUsd, 'USD')}</p>}
-                      {bitcoinPriceInfo.marketCapBrl && <p><strong className="text-slate-600 dark:text-slate-300">Capitalização (BRL):</strong> {formatCurrency(bitcoinPriceInfo.marketCapBrl)}</p>}
-                      {bitcoinPriceInfo.totalSupply && <p><strong className="text-slate-600 dark:text-slate-300">Fornecimento Total:</strong> {formatNumber(bitcoinPriceInfo.totalSupply, 0)} BTC</p>}
-                      {bitcoinPriceInfo.circulatingSupply && <p><strong className="text-slate-600 dark:text-slate-300">Fornecimento Circulante:</strong> {formatNumber(bitcoinPriceInfo.circulatingSupply, 0)} BTC</p>}
+                      {bitcoinPriceInfo.marketCapUsd != null && <p><strong className="text-slate-600 dark:text-slate-300">Capitalização (USD):</strong> {formatCurrency(bitcoinPriceInfo.marketCapUsd, 'USD')}</p>}
+                      {bitcoinPriceInfo.marketCapBrl != null && <p><strong className="text-slate-600 dark:text-slate-300">Capitalização (BRL):</strong> {formatCurrency(bitcoinPriceInfo.marketCapBrl)}</p>}
+                      {bitcoinPriceInfo.totalSupply != null && <p><strong className="text-slate-600 dark:text-slate-300">Fornecimento Total:</strong> {formatNumber(bitcoinPriceInfo.totalSupply, 0)} BTC</p>}
+                      {bitcoinPriceInfo.circulatingSupply != null && <p><strong className="text-slate-600 dark:text-slate-300">Fornecimento Circulante:</strong> {formatNumber(bitcoinPriceInfo.circulatingSupply, 0)} BTC</p>}
                     </div>
                   </div>
                 )}
@@ -556,8 +657,8 @@ const App: React.FC = () => {
                         <div className="p-4 bg-slate-100 dark:bg-slate-800 rounded-lg shadow-inner">
                             <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200 mb-2">Cotação Atual</h3>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-                                <p><strong className="text-slate-600 dark:text-slate-300">Preço (USD):</strong> {formatCurrency(usdtPriceInfo.usd, 'USD')}</p>
-                                <p><strong className="text-slate-600 dark:text-slate-300">Preço (BRL):</strong> {formatCurrency(usdtPriceInfo.brl)}</p>
+                                <p><strong className="text-slate-600 dark:text-slate-300">Preço (USD):</strong> {usdtPriceInfo.usd != null ? formatCurrency(usdtPriceInfo.usd, 'USD') : 'N/A'}</p>
+                                <p><strong className="text-slate-600 dark:text-slate-300">Preço (BRL):</strong> {usdtPriceInfo.brl != null ? formatCurrency(usdtPriceInfo.brl) : 'N/A'}</p>
                             </div>
                             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                                 Última atualização: {formatUnixTimestampForDisplay(usdtPriceInfo.lastUpdatedAt)} (CoinGecko)
@@ -569,10 +670,10 @@ const App: React.FC = () => {
                         <div className="p-4 bg-slate-100 dark:bg-slate-800 rounded-lg shadow-inner">
                             <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200 mb-2">Dados de Mercado</h3>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                            {usdtPriceInfo.marketCapUsd && <p><strong className="text-slate-600 dark:text-slate-300">Capitalização (USD):</strong> {formatCurrency(usdtPriceInfo.marketCapUsd, 'USD')}</p>}
-                            {usdtPriceInfo.marketCapBrl && <p><strong className="text-slate-600 dark:text-slate-300">Capitalização (BRL):</strong> {formatCurrency(usdtPriceInfo.marketCapBrl)}</p>}
-                            {usdtPriceInfo.totalSupply && <p><strong className="text-slate-600 dark:text-slate-300">Fornecimento Total:</strong> {formatNumber(usdtPriceInfo.totalSupply, 0)} USDT</p>}
-                            {usdtPriceInfo.circulatingSupply && <p><strong className="text-slate-600 dark:text-slate-300">Fornecimento Circulante:</strong> {formatNumber(usdtPriceInfo.circulatingSupply, 0)} USDT</p>}
+                            {usdtPriceInfo.marketCapUsd != null && <p><strong className="text-slate-600 dark:text-slate-300">Capitalização (USD):</strong> {formatCurrency(usdtPriceInfo.marketCapUsd, 'USD')}</p>}
+                            {usdtPriceInfo.marketCapBrl != null && <p><strong className="text-slate-600 dark:text-slate-300">Capitalização (BRL):</strong> {formatCurrency(usdtPriceInfo.marketCapBrl)}</p>}
+                            {usdtPriceInfo.totalSupply != null && <p><strong className="text-slate-600 dark:text-slate-300">Fornecimento Total:</strong> {formatNumber(usdtPriceInfo.totalSupply, 0)} USDT</p>}
+                            {usdtPriceInfo.circulatingSupply != null && <p><strong className="text-slate-600 dark:text-slate-300">Fornecimento Circulante:</strong> {formatNumber(usdtPriceInfo.circulatingSupply, 0)} USDT</p>}
                             </div>
                         </div>
                     )}
@@ -590,7 +691,20 @@ const App: React.FC = () => {
               </Card>
             </>
           );
+      case 'rssStoriesFeed': // Added case for RSS Stories Feed
+        return (
+          <>
+            <Button onClick={() => setActiveView('selector')} variant="secondary" size="md" className="mb-6" aria-label="Voltar para seleção de ferramentas">
+              &larr; Voltar para seleção de ferramentas
+            </Button>
+            <RSSStoriesFeed />
+          </>
+        );
       default:
+        // Fallback to selector if view is unknown
+        if (activeView !== 'selector') {
+            setActiveView('selector'); 
+        }
         return null;
     }
   };
@@ -630,6 +744,9 @@ const App: React.FC = () => {
                 </text>
               </svg>
             </h1>
+          </div>
+           <div className="absolute left-4 sm:left-6 top-1/2 -translate-y-1/2 text-xs sm:text-sm text-slate-600 dark:text-slate-400 font-medium hidden md:block">
+            {getSubtitle()}
           </div>
           <div className="absolute right-4 sm:right-6 top-1/2 -translate-y-1/2">
             <ThemeToggle />

@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { ScenarioData, InputFormData, ProjectionPoint, RetirementAnalysisResults } from '../types';
 import LineChartComponent from './LineChartComponent';
@@ -110,8 +111,12 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ scenarioData, inputValu
     if (inputValues.enableAdvancedSimulation && inputValues.advancedSimModeRetirement && inputValues.currentAge && inputValues.targetAge) {
       params.push(`Idade Atual: ${inputValues.currentAge}, Idade Alvo Aposentadoria: ${inputValues.targetAge}`);
       params.push(`Renda Mensal Desejada (hoje): ${formatCurrency(inputValues.desiredMonthlyIncomeToday || 0)}`);
-      if (inputValues.adjustContributionsForInflation && inputValues.expectedInflationRate) {
-        params.push(`Taxa de Inflação Esperada: ${formatNumber(inputValues.expectedInflationRate, 2)}% a.a.`);
+      if (inputValues.adjustContributionsForInflation) {
+        if (inputValues.expectedInflationRate !== undefined && inputValues.expectedInflationRate !== null) {
+            params.push(`Taxa de Inflação Esperada: ${formatNumber(inputValues.expectedInflationRate, 2)}% a.a.`);
+        } else {
+            params.push(`Taxa de Inflação Esperada: N/D`);
+        }
       }
     }
     

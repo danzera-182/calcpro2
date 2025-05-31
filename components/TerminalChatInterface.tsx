@@ -39,13 +39,15 @@ const TerminalChatInterface: React.FC<TerminalChatInterfaceProps> = ({ selectedI
   }, []);
 
   useEffect(() => {
-    if (!process.env.API_KEY) {
-      console.error("API_KEY is not set for Gemini.");
-      setMessages(prev => [...prev, { id: 'system-error-apikey', role: 'system', text: "Erro de configuração: A chave da API para o serviço de IA não está definida.", timestamp: new Date() }]);
+    const apiKey = (typeof process !== 'undefined' && process.env) ? process.env.API_KEY : undefined;
+
+    if (!apiKey) {
+      console.error("API_KEY is not set for Gemini or process.env is not available.");
+      setMessages(prev => [...prev, { id: 'system-error-apikey', role: 'system', text: "Erro de configuração: A chave da API para o serviço de IA não está definida ou acessível.", timestamp: new Date() }]);
       return;
     }
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey: apiKey });
       chatSessionRef.current = ai.chats.create({
         model: 'gemini-2.5-flash-preview-04-17',
         config: {
