@@ -116,7 +116,7 @@ export interface FixedIncomeResult {
 
 
 // Type for App View
-export type AppView = 'selector' | 'compoundInterest' | 'fixedIncomeComparator' | 'comprehensiveComparator' | 'macroEconomicPanel' | 'macroEconomicTerminal' | 'bitcoinChartDetail' | 'usdtChartDetail';
+export type AppView = 'selector' | 'compoundInterest' | 'fixedIncomeComparator' | 'comprehensiveComparator' | 'macroEconomicPanel' | 'macroEconomicTerminal' | 'bitcoinChartDetail' | 'usdtChartDetail' | 'newsFeed';
 
 // Types for Comprehensive Comparator
 export type InvestmentPeriodUnit = 'months' | 'years';
@@ -313,4 +313,17 @@ export interface MergedTerminalChartDataPoint {
   timestamp: number; // X-axis (date as timestamp)
   // Dynamically add keys based on selected indicators
   [dataKey: string]: number | null | undefined; 
+}
+
+// For Finnhub News
+export interface FinnhubNewsItem {
+  category: string;
+  datetime: number; // Unix timestamp
+  headline: string;
+  id: number;
+  image: string;
+  related: string; // Symbol or general category
+  source: string;
+  summary: string;
+  url: string;
 }

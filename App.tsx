@@ -15,7 +15,8 @@ import UsdtRateDisplay from './components/UsdtRateDisplay.tsx';
 import MacroEconomicPanel from './components/MacroEconomicPanel.tsx'; 
 import TerminalView from './components/TerminalView.tsx';
 import BitcoinDetailedChart from './components/BitcoinDetailedChart.tsx';
-import UsdtDetailedChart from './components/UsdtDetailedChart.tsx'; // Added
+import UsdtDetailedChart from './components/UsdtDetailedChart.tsx';
+import NewsFeedComponent from './components/NewsFeedComponent.tsx'; // Added NewsFeedComponent
 import { fetchLatestBitcoinPrice, fetchLatestUsdtPrice } from './utils/economicIndicatorsAPI.ts';
 import { formatCurrency, formatNumberForDisplay, formatNumber } from './utils/formatters.ts';
 
@@ -83,8 +84,6 @@ const App: React.FC = () => {
   }, [inputValues]);
 
   useEffect(() => {
-    // Fetch detailed data if on the specific chart view and data isn't fully loaded
-    // For selector view, fetch only if basic data isn't available or errored.
     const shouldFetchBtcDetailed = activeView === 'bitcoinChartDetail' && (!bitcoinPriceInfo || !bitcoinPriceInfo.description);
     const shouldFetchUsdtDetailed = activeView === 'usdtChartDetail' && (!usdtPriceInfo || !usdtPriceInfo.description);
 
@@ -165,6 +164,8 @@ const App: React.FC = () => {
         return "Análise detalhada da cotação e informações do Bitcoin.";
       case 'usdtChartDetail':
         return "Análise detalhada da cotação e informações do USDT (Tether).";
+      case 'newsFeed':
+        return "Mantenha-se atualizado com as últimas notícias do mercado financeiro.";
       case 'selector':
       default:
         return "Suas ferramentas financeiras em um só lugar. Escolha uma opção abaixo para começar.";
@@ -205,7 +206,7 @@ const App: React.FC = () => {
                 onClick={() => setActiveView('usdtChartDetail')}
               />
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6 sm:gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
               <Card 
                 className="cursor-pointer hover:shadow-premium-hover transition-shadow duration-200 ease-in-out transform hover:-translate-y-1"
                 onClick={() => setActiveView('compoundInterest')}
@@ -264,6 +265,21 @@ const App: React.FC = () => {
                     Acompanhe os principais indicadores econômicos do Brasil, como Selic, CDI, IPCA, TR e Dólar.
                   </p>
                   <Button variant="primary" className="mt-4 w-full" tabIndex={-1}>Acessar Painel</Button>
+                </Card.Content>
+              </Card>
+              <Card 
+                className="cursor-pointer hover:shadow-premium-hover transition-shadow duration-200 ease-in-out transform hover:-translate-y-1 md:col-span-2 lg:col-span-1"
+                onClick={() => setActiveView('newsFeed')}
+                aria-label="Acessar Feed de Notícias"
+              >
+                <Card.Header>
+                  <Card.Title>📰 Feed de Notícias Financeiras</Card.Title>
+                </Card.Header>
+                <Card.Content>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                    Fique por dentro das últimas notícias e acontecimentos do mercado financeiro global.
+                  </p>
+                  <Button variant="primary" className="mt-4 w-full" tabIndex={-1}>Acessar Notícias</Button>
                 </Card.Content>
               </Card>
             </div>
@@ -590,6 +606,15 @@ const App: React.FC = () => {
               </Card>
             </>
           );
+      case 'newsFeed':
+        return (
+          <>
+            <Button onClick={() => setActiveView('selector')} variant="secondary" size="md" className="mb-6" aria-label="Voltar para seleção de ferramentas">
+              &larr; Voltar para seleção de ferramentas
+            </Button>
+            <NewsFeedComponent />
+          </>
+        );
       default:
         return null;
     }
@@ -630,6 +655,9 @@ const App: React.FC = () => {
                 </text>
               </svg>
             </h1>
+          </div>
+           <div className="absolute left-4 sm:left-6 top-1/2 -translate-y-1/2 text-xs sm:text-sm text-slate-600 dark:text-slate-400 font-medium hidden md:block">
+            {getSubtitle()}
           </div>
           <div className="absolute right-4 sm:right-6 top-1/2 -translate-y-1/2">
             <ThemeToggle />
