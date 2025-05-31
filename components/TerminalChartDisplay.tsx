@@ -1,5 +1,4 @@
-
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { MergedTerminalChartDataPoint, AvailableIndicatorForTerminal } from '../types'; 
 import { useTheme } from '../hooks/useTheme';
@@ -64,9 +63,23 @@ const CustomTooltipContent: React.FC<any> = ({ active, payload, label, seriesCon
 
 const TerminalChartDisplay: React.FC<TerminalChartDisplayProps> = ({ data, activeIndicators, yAxisLabel = "Valor" }) => {
   const { theme } = useTheme();
+  const chartContainerRef = useRef<HTMLDivElement>(null);
   const axisLabelColor = theme === 'dark' ? '#9CA3AF' : '#6B7280';
   const tickColor = theme === 'dark' ? '#D1D5DB' : '#374151';
   const gridColor = theme === 'dark' ? '#4B5563' : '#D1D5DB';
+
+  useEffect(() => {
+    const chartNode = chartContainerRef.current;
+    if (chartNode) {
+      const handleTouchMove = (event: TouchEvent) => {
+        event.preventDefault();
+      };
+      chartNode.addEventListener('touchmove', handleTouchMove, { passive: false });
+      return () => {
+        chartNode.removeEventListener('touchmove', handleTouchMove, { passive: false } as any);
+      };
+    }
+  }, []);
 
   if (!data || data.length === 0 || !activeIndicators || activeIndicators.length === 0) {
     return <p className="text-center text-gray-500 dark:text-gray-400 py-10">Dados insuficientes para exibir o gráfico.</p>;
@@ -137,7 +150,7 @@ const TerminalChartDisplay: React.FC<TerminalChartDisplayProps> = ({ data, activ
   }
 
   return (
-    <div style={{ width: '100%', height: 400 }} role="figure" aria-label="Gráfico comparativo de indicadores macroeconômicos">
+    <div ref={chartContainerRef} style={{ width: '100%', height: 400, touchAction: 'manipulation' }} role="figure" aria-label="Gráfico comparativo de indicadores macroeconômicos">
       <ResponsiveContainer>
         <LineChart data={data} margin={{ top: 5, right: 20, left: 25, bottom: 20 }}>
           <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />

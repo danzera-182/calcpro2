@@ -1,5 +1,5 @@
 // utils/economicIndicatorsAPI.ts
-import { HistoricalDataPoint, DynamicHistoricalAverage, BtcPriceInfo, UsdBrlRateInfo } from '../types'; 
+import { HistoricalDataPoint, DynamicHistoricalAverage, BtcPriceInfo, UsdBrlRateInfo, BitcoinPriceHistoryPoint, UsdtPriceInfo } from '../types'; 
 
 export interface FetchedEconomicIndicators {
   selicRate?: number;
@@ -385,30 +385,199 @@ export async function fetchEconomicIndicators(): Promise<FetchedEconomicIndicato
 }
 
 /**
- * Fetches the latest Bitcoin price from CoinGecko API.
+ * Fetches the latest Bitcoin price from CoinGecko API and detailed info.
  */
 export async function fetchLatestBitcoinPrice(): Promise<BtcPriceInfo | null> {
-  const apiUrl = 'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=brl,usd&include_last_updated_at=true';
+  const detailedApiUrl = 'https://api.coingecko.com/api/v3/coins/bitcoin?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false&sparkline=false';
+  let detailedData: any;
+
   try {
-    const response = await fetch(apiUrl);
-    if (!response.ok) {
-      throw new Error(`CoinGecko API request failed with status ${response.status}`);
+    const detailedResponse = await fetch(detailedApiUrl);
+    if (!detailedResponse.ok) throw new Error(`CoinGecko Detailed Bitcoin API request failed: ${detailedResponse.status}`);
+    detailedData = await detailedResponse.json();
+
+    if (!detailedData.market_data || !detailedData.market_data.current_price || !detailedData.market_data.market_cap || !detailedData.description) {
+      throw new Error('Invalid Bitcoin detailed data format from CoinGecko');
     }
-    const data = await response.json();
-    if (data.bitcoin && data.bitcoin.brl && data.bitcoin.usd && data.bitcoin.last_updated_at) {
-      return {
-        brl: data.bitcoin.brl,
-        usd: data.bitcoin.usd,
-        lastUpdatedAt: data.bitcoin.last_updated_at,
-      };
+    
+    let lastUpdatedAtTimestamp: number;
+    if (detailedData.market_data.last_updated) {
+        const parsedDate = new Date(detailedData.market_data.last_updated);
+        if (!isNaN(parsedDate.getTime())) {
+            lastUpdatedAtTimestamp = Math.floor(parsedDate.getTime() / 1000); 
+        } else {
+            console.warn("Could not parse last_updated date from CoinGecko:", detailedData.market_data.last_updated);
+            lastUpdatedAtTimestamp = Math.floor(Date.now() / 1000); 
+        }
     } else {
-      throw new Error('Invalid Bitcoin price data format from CoinGecko');
+        lastUpdatedAtTimestamp = Math.floor(Date.now() / 1000); 
     }
-  } catch (e: any) {
-    console.error("Error fetching Bitcoin price from CoinGecko:", e.message, e);
-    return null;
+
+    return {
+      brl: detailedData.market_data.current_price?.brl,
+      usd: detailedData.market_data.current_price?.usd,
+      lastUpdatedAt: lastUpdatedAtTimestamp,
+      marketCapUsd: detailedData.market_data.market_cap?.usd,
+      marketCapBrl: detailedData.market_data.market_cap?.brl,
+      totalSupply: detailedData.market_data.total_supply,
+      circulatingSupply: detailedData.market_data.circulating_supply,
+      description: detailedData.description?.pt || detailedData.description?.en || "Descrição não disponível.",
+      usd_24h_change: detailedData.market_data.price_change_percentage_24h_in_currency?.usd,
+      brl_24h_change: detailedData.market_data.price_change_percentage_24h_in_currency?.brl,
+    };
+
+  } catch (eDetailed: any) {
+    console.error("Error fetching Bitcoin detailed data from CoinGecko:", eDetailed.message, eDetailed);
+    try {
+        const priceApiUrl = 'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=brl,usd&include_last_updated_at=true&include_24hr_change=true';
+        const priceResponse = await fetch(priceApiUrl);
+        if (!priceResponse.ok) throw new Error(`Fallback CoinGecko Price API request failed: ${priceResponse.status}`);
+        const priceData = await priceResponse.json();
+         if (!priceData.bitcoin || !priceData.bitcoin.brl || !priceData.bitcoin.usd || !priceData.bitcoin.last_updated_at) {
+            throw new Error('Invalid Bitcoin simple price data format from CoinGecko fallback');
+        }
+
+        return {
+            brl: priceData.bitcoin.brl,
+            usd: priceData.bitcoin.usd,
+            lastUpdatedAt: priceData.bitcoin.last_updated_at,
+            usd_24h_change: priceData.bitcoin.usd_24h_change,
+            brl_24h_change: priceData.bitcoin.brl_24h_change,
+            description: "Informações detalhadas do Bitcoin indisponíveis no momento. Exibindo cotação básica.",
+        };
+    } catch (eFallback: any) {
+        console.error("Error in fallback Bitcoin price fetch:", eFallback.message, eFallback);
+        throw new Error(eDetailed.message || eFallback.message || 'Failed to fetch any Bitcoin price');
+    }
   }
 }
+
+/**
+ * Fetches the latest USDT (Tether) price from CoinGecko API, including detailed info.
+ */
+export async function fetchLatestUsdtPrice(): Promise<UsdtPriceInfo | null> {
+  const detailedApiUrl = 'https://api.coingecko.com/api/v3/coins/tether?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false&sparkline=false';
+  let detailedData: any;
+
+  try {
+    const detailedResponse = await fetch(detailedApiUrl);
+    if (!detailedResponse.ok) throw new Error(`CoinGecko Detailed USDT API request failed: ${detailedResponse.status}`);
+    detailedData = await detailedResponse.json();
+
+    if (!detailedData.market_data || !detailedData.market_data.current_price || !detailedData.market_data.market_cap || !detailedData.description) {
+      throw new Error('Invalid USDT detailed data format from CoinGecko');
+    }
+    
+    let lastUpdatedAtTimestamp: number;
+    if (detailedData.market_data.last_updated) {
+        const parsedDate = new Date(detailedData.market_data.last_updated);
+        if (!isNaN(parsedDate.getTime())) {
+            lastUpdatedAtTimestamp = Math.floor(parsedDate.getTime() / 1000); 
+        } else {
+            console.warn("Could not parse last_updated date from CoinGecko (USDT):", detailedData.market_data.last_updated);
+            lastUpdatedAtTimestamp = Math.floor(Date.now() / 1000); 
+        }
+    } else {
+        lastUpdatedAtTimestamp = Math.floor(Date.now() / 1000); 
+    }
+
+    return {
+      brl: detailedData.market_data.current_price?.brl,
+      usd: detailedData.market_data.current_price?.usd,
+      lastUpdatedAt: lastUpdatedAtTimestamp,
+      marketCapUsd: detailedData.market_data.market_cap?.usd,
+      marketCapBrl: detailedData.market_data.market_cap?.brl,
+      totalSupply: detailedData.market_data.total_supply,
+      circulatingSupply: detailedData.market_data.circulating_supply,
+      description: detailedData.description?.pt || detailedData.description?.en || "Descrição não disponível.",
+      usd_24h_change: detailedData.market_data.price_change_percentage_24h_in_currency?.usd,
+      brl_24h_change: detailedData.market_data.price_change_percentage_24h_in_currency?.brl,
+    };
+
+  } catch (eDetailed: any) {
+    console.error("Error fetching USDT detailed data from CoinGecko:", eDetailed.message, eDetailed);
+    try {
+        const priceApiUrl = 'https://api.coingecko.com/api/v3/simple/price?ids=tether&vs_currencies=brl,usd&include_last_updated_at=true&include_24hr_change=true';
+        const priceResponse = await fetch(priceApiUrl);
+        if (!priceResponse.ok) throw new Error(`Fallback CoinGecko USDT Price API request failed: ${priceResponse.status}`);
+        const priceData = await priceResponse.json();
+         if (!priceData.tether || !priceData.tether.brl || !priceData.tether.usd || !priceData.tether.last_updated_at) {
+            throw new Error('Invalid USDT simple price data format from CoinGecko fallback');
+        }
+        return {
+            brl: priceData.tether.brl,
+            usd: priceData.tether.usd,
+            lastUpdatedAt: priceData.tether.last_updated_at,
+            usd_24h_change: priceData.tether.usd_24h_change,
+            brl_24h_change: priceData.tether.brl_24h_change,
+            description: "Informações detalhadas do USDT indisponíveis no momento. Exibindo cotação básica.",
+        };
+    } catch (eFallback: any) {
+        console.error("Error in fallback USDT price fetch:", eFallback.message, eFallback);
+        throw new Error(eDetailed.message || eFallback.message || 'Failed to fetch any USDT price');
+    }
+  }
+}
+
+
+/**
+ * Fetches Bitcoin historical price data from CoinGecko API for various periods.
+ * @param coinId The ID of the coin (e.g., 'bitcoin').
+ * @param vsCurrency The currency to get the price in (e.g., 'usd').
+ * @param days The number of days of data to return (e.g., '1', '7', '30', '90', '180', '365', 'max').
+ * @returns Array of BitcoinPriceHistoryPoint.
+ * @throws Error if API request fails or data is invalid.
+ */
+export async function fetchBitcoinHistoricalChartData(
+  coinId: string = 'bitcoin', 
+  vsCurrency: string = 'usd', 
+  days: string = '30'
+): Promise<BitcoinPriceHistoryPoint[]> {
+  const chartApiUrl = `https://api.coingecko.com/api/v3/coins/${coinId}/market_chart?vs_currency=${vsCurrency}&days=${days}`;
+  try {
+    const response = await fetch(chartApiUrl);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`CoinGecko Market Chart API request for ${coinId} (${days} days) failed with status ${response.status}: ${errorText}`);
+      throw new Error(`Falha na API CoinGecko (${response.status}) ao buscar dados do ${coinId}.`);
+    }
+    const data = await response.json();
+    if (data && data.prices && Array.isArray(data.prices)) {
+      return data.prices.map((item: [number, number]) => ({
+        timestamp: item[0], 
+        price: item[1],
+      }));
+    }
+    console.error(`Invalid Bitcoin market chart data format from CoinGecko for ${coinId} (${days} days)`);
+    throw new Error(`Formato de dados inválido da API CoinGecko para ${coinId}.`);
+  } catch (e: any) {
+    console.error(`Error in fetchBitcoinHistoricalChartData for ${coinId} (${days} days):`, e.message);
+    // If it's a "Failed to fetch" type of error, e.message might already be user-friendly enough
+    // Otherwise, provide a generic network error message.
+    if (e.message && (e.message.includes('Failed to fetch') || e.message.includes('NetworkError'))) {
+        throw new Error(`Erro de rede ao buscar dados do ${coinId}: Verifique sua conexão.`);
+    }
+    throw new Error(e.message || `Erro desconhecido ao buscar dados históricos do ${coinId}.`);
+  }
+}
+
+/**
+ * Fetches USDT historical price data from CoinGecko API for various periods.
+ * @param coinId The ID of the coin (e.g., 'tether').
+ * @param vsCurrency The currency to get the price in (e.g., 'usd').
+ * @param days The number of days of data to return (e.g., '1', '7', '30', '90', '180', '365', 'max').
+ * @returns Array of BitcoinPriceHistoryPoint (reusing type).
+ * @throws Error if API request fails or data is invalid.
+ */
+export async function fetchUsdtHistoricalChartData(
+  coinId: string = 'tether', 
+  vsCurrency: string = 'usd', 
+  days: string = '30'
+): Promise<BitcoinPriceHistoryPoint[]> {
+  // Reusing fetchBitcoinHistoricalChartData as the endpoint structure is the same
+  return fetchBitcoinHistoricalChartData(coinId, vsCurrency, days);
+}
+
 
 /**
  * Fetches the latest USD/BRL PTAX Venda rate from BCB SGS API.
@@ -429,12 +598,10 @@ export async function fetchLatestUsdBrlRate(): Promise<UsdBrlRateInfo | null> {
         throw new Error('Invalid PTAX rate value (NaN)');
       }
       
-      // Convert DD/MM/YYYY to YYYY-MM-DDTHH:mm:ssZ
       const dateParts = data[0].data.split('/');
       if (dateParts.length !== 3) {
         throw new Error('Invalid PTAX date format from SGS');
       }
-      // PTAX is typically defined in the afternoon. Using 16:00 UTC as a generic time.
       const isoDateTime = `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}T16:00:00Z`;
 
       return {
@@ -534,12 +701,6 @@ export async function fetchAndCalculateHistoricalAverage(
   const startDate = new Date();
   startDate.setFullYear(endDate.getFullYear() - numberOfYears);
 
-  // Ensure startDate is at least the earliest possible for some series if needed, e.g. BCB start
-  // const earliestDataDate = new Date('1995-01-01'); // Example for some series
-  // if (startDate < earliestDataDate) {
-  //   startDate.setTime(earliestDataDate.getTime());
-  // }
-
   const formatDate = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
   const apiStartDateStr = formatDate(startDate);
   const apiEndDateStr = formatDate(endDate);
@@ -557,7 +718,6 @@ export async function fetchAndCalculateHistoricalAverage(
       return { value: null, isLoading: false, error: "Dados retornados não contêm valores numéricos válidos.", sourceSgsCode: sgsCode };
     }
 
-    // Geometric mean calculation
     let productOfGrowthFactors = 1;
     for (const monthlyRate of monthlyValues) {
       productOfGrowthFactors *= (1 + monthlyRate);
@@ -570,8 +730,8 @@ export async function fetchAndCalculateHistoricalAverage(
         return { value: null, isLoading: false, error: "Cálculo da média resultou em NaN.", sourceSgsCode: sgsCode };
     }
 
-    const firstDataDate = rawData[0].data; // dd/MM/yyyy
-    const lastDataDate = rawData[rawData.length - 1].data; // dd/MM/yyyy
+    const firstDataDate = rawData[0].data; 
+    const lastDataDate = rawData[rawData.length - 1].data; 
     
     const formatDisplayDate = (dmyString: string) => {
         const parts = dmyString.split('/');

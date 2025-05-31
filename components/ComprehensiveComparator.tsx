@@ -3,16 +3,16 @@ import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { ComprehensiveInputs, InvestmentPeriodUnit, InvestmentCalculationResult } from '../types';
 import { DEFAULT_COMPREHENSIVE_INPUTS } from '../constants';
 import { Card } from './ui/Card';
-import Input from './ui/Input'; // For applicationPeriodValue (integer)
+import Input from './ui/Input'; 
 import Select from './ui/Select';
 import Button from './ui/Button';
-import { getIrRate } from '../utils/fixedIncomeCalculations'; // Re-use IR calculation
+import { getIrRate } from '../utils/fixedIncomeCalculations'; 
 import { formatCurrency, formatNumber, formatNumberForDisplay } from '../utils/formatters';
-import FormattedNumericInput from './ui/FormattedNumericInput'; // Import the new component
-import { fetchEconomicIndicators, FetchedEconomicIndicators } from '../utils/economicIndicatorsAPI'; // Import new fetcher
+import FormattedNumericInput from './ui/FormattedNumericInput'; 
+import { fetchEconomicIndicators, FetchedEconomicIndicators } from '../utils/economicIndicatorsAPI'; 
 
 const InfoIcon: React.FC<{ title?: string }> = ({ title = "Informação" }) => (
-  <span className="ml-1 text-xs text-gray-400 dark:text-gray-500 cursor-default" title={title}>
+  <span className="ml-1 text-xs text-slate-400 dark:text-slate-500 cursor-default" title={title}>
     (i)
   </span>
 );
@@ -27,10 +27,10 @@ const AutoFetchedMarker: React.FC<AutoFetchedMarkerProps> = ({ isFetched }) => {
 
 
 interface DirectFVFormulaParams {
-  pv: number; // Present Value (initial investment)
-  pmt: number; // Periodic Payment (monthly contribution)
-  i: number; // Periodic interest rate (monthly, as decimal)
-  n: number; // Number of periods (total months)
+  pv: number; 
+  pmt: number; 
+  i: number; 
+  n: number; 
 }
 
 interface DirectFVFormulaResult {
@@ -45,7 +45,7 @@ function calculateFVDirectFormula(params: DirectFVFormulaParams): DirectFVFormul
   let fv_pv: number;
   let fv_pmt: number;
 
-  if (i === 0) { // Handle zero interest rate case
+  if (i === 0) { 
     fv_pv = pv;
     fv_pmt = pmt * n;
   } else {
@@ -72,27 +72,21 @@ const calculatePoupancaEffectiveRates = (selicRateAnnualPercent: number | null, 
     let poupancaMonthlyRateBeforeTRDecimal: number;
     let ruleApplied: string;
 
-    if (selicAnnualDecimal <= 0.085) { // Selic Meta <= 8.5% a.a.
-        // Regra: 70% da Selic Meta Mensalizada + TR Mensal
-        // 1. Converter Selic Meta anual para mensal
+    if (selicAnnualDecimal <= 0.085) { 
         const selicMonthlyDecimalEquivalent = Math.pow(1 + selicAnnualDecimal, 1/12) - 1;
-        // 2. Aplicar 70% sobre a Selic Meta mensal
         poupancaMonthlyRateBeforeTRDecimal = 0.70 * selicMonthlyDecimalEquivalent;
-        ruleApplied = "70% Selic + TR"; // Descrição para o usuário ainda se refere à Selic Meta anual
-    } else { // Selic Meta > 8.5% a.a.
-        // Regra: 0,5% ao mês + TR Mensal
-        poupancaMonthlyRateBeforeTRDecimal = 0.005; // 0.5% a.m.
+        ruleApplied = "70% Selic + TR"; 
+    } else { 
+        poupancaMonthlyRateBeforeTRDecimal = 0.005; 
         ruleApplied = "0,5% a.m. + TR";
     }
 
-    // 3. Somar a TR mensal (já está em decimal)
     const effectiveMonthlyRate = poupancaMonthlyRateBeforeTRDecimal + trMonthlyDecimal;
-    // 4. Anualizar a taxa mensal efetiva para referência
     const effectiveAnnualRate = Math.pow(1 + effectiveMonthlyRate, 12) - 1;
     
     return {
-        monthly: effectiveMonthlyRate * 100, // como percentual
-        annual: effectiveAnnualRate * 100,   // como percentual
+        monthly: effectiveMonthlyRate * 100, 
+        annual: effectiveAnnualRate * 100,   
         ruleApplied
     };
 };
@@ -100,11 +94,10 @@ const calculatePoupancaEffectiveRates = (selicRateAnnualPercent: number | null, 
 interface IpcaDisplayConfig {
   tooltipText: string;
   isFetched: boolean;
-  // referenceDate and sourceType are now part of FetchedEconomicIndicators
 }
 
 
-type AutoFetchTrackedKeys = 'selicRate' | 'cdiRate' | 'ipcaRate' | 'trRate'; // TR re-added
+type AutoFetchTrackedKeys = 'selicRate' | 'cdiRate' | 'ipcaRate' | 'trRate'; 
 
 
 const ComprehensiveComparator: React.FC = () => {
@@ -113,11 +106,10 @@ const ComprehensiveComparator: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false); 
   
   const [isFetchingEconomicData, setIsFetchingEconomicData] = useState<boolean>(false);
-  const [fetchedEcoData, setFetchedEcoData] = useState<FetchedEconomicIndicators | null>(null); // Store all fetched data
+  const [fetchedEcoData, setFetchedEcoData] = useState<FetchedEconomicIndicators | null>(null); 
   const [economicDataFetchError, setEconomicDataFetchError] = useState<string | null>(null);
   const [initialFetchedDataMarkers, setInitialFetchedDataMarkers] = useState<Partial<Record<AutoFetchTrackedKeys, boolean>>>({});
   
-  // IPCA specific display config, primarily for its custom tooltip and fetched status
   const [ipcaDisplayConfig, setIpcaDisplayConfig] = useState<IpcaDisplayConfig>({
     tooltipText: "Inflação (IPCA) anual projetada.",
     isFetched: false,
@@ -128,7 +120,7 @@ const ComprehensiveComparator: React.FC = () => {
     const loadEconomicData = async () => {
       setIsFetchingEconomicData(true);
       setEconomicDataFetchError(null);
-      setFetchedEcoData(null); // Clear previous fetched data
+      setFetchedEcoData(null); 
       try {
         const fetchedData = await fetchEconomicIndicators();
         setFetchedEcoData(fetchedData);
@@ -136,7 +128,7 @@ const ComprehensiveComparator: React.FC = () => {
         const newFetchedMarkers: Partial<Record<AutoFetchTrackedKeys, boolean>> = {};
         if (fetchedData.selicRate !== undefined) newFetchedMarkers.selicRate = true;
         if (fetchedData.cdiRate !== undefined) newFetchedMarkers.cdiRate = true;
-        if (fetchedData.trRate !== undefined) newFetchedMarkers.trRate = true; // TR is now auto-fetched
+        if (fetchedData.trRate !== undefined) newFetchedMarkers.trRate = true; 
         
         setInitialFetchedDataMarkers(newFetchedMarkers);
 
@@ -145,7 +137,7 @@ const ComprehensiveComparator: React.FC = () => {
           ...(fetchedData.selicRate !== undefined && { selicRate: fetchedData.selicRate }),
           ...(fetchedData.cdiRate !== undefined && { cdiRate: fetchedData.cdiRate }),
           ...(fetchedData.ipcaRate !== undefined && { ipcaRate: fetchedData.ipcaRate }),
-          ...(fetchedData.trRate !== undefined && { trRate: fetchedData.trRate }), // TR is updated from fetchedData
+          ...(fetchedData.trRate !== undefined && { trRate: fetchedData.trRate }), 
         }));
         
         let newIpcaTooltipText = "Inflação (IPCA) anual projetada (valor padrão).";
@@ -154,13 +146,13 @@ const ComprehensiveComparator: React.FC = () => {
         if (fetchedData.ipcaRate !== undefined) {
           newIpcaIsFetched = true;
           if (fetchedData.ipcaSourceType === 'accumulated12m') {
-            if (fetchedData.ipcaReferenceDate) { // Expected MM/YYYY
+            if (fetchedData.ipcaReferenceDate) { 
               newIpcaTooltipText = `IPCA real acumulado nos 12 meses encerrados em ${fetchedData.ipcaReferenceDate} (dado mais recente disponível).`;
             } else {
               newIpcaTooltipText = "IPCA real acumulado nos últimos 12 meses (dado mais recente disponível).";
             }
-          } else { // 'projection' or undefined
-            if (fetchedData.ipcaReferenceDate) { // Expected YYYY
+          } else { 
+            if (fetchedData.ipcaReferenceDate) { 
                newIpcaTooltipText = `Inflação (IPCA) anual projetada para ${fetchedData.ipcaReferenceDate}.`;
             } else {
                newIpcaTooltipText = "Inflação (IPCA) anual projetada.";
@@ -174,7 +166,7 @@ const ComprehensiveComparator: React.FC = () => {
 
 
         if (fetchedData.errors && fetchedData.errors.length > 0) {
-          const totalPossibleIndicatorsAutoFetched = 4; // Selic, CDI, IPCA, TR
+          const totalPossibleIndicatorsAutoFetched = 4; 
           if (fetchedData.errors.length === totalPossibleIndicatorsAutoFetched) { 
              setEconomicDataFetchError(`Falha ao buscar todos os indicadores automáticos. Usando valores padrão.`);
           } else {
@@ -198,7 +190,6 @@ const ComprehensiveComparator: React.FC = () => {
     setInputs(prev => ({ ...prev, [name]: value })); 
     setResults(null);
     
-    // If user manually changes an auto-fetched field, clear its 'fetched' marker and specific date info for that field
     const keyName = name as AutoFetchTrackedKeys;
     if (initialFetchedDataMarkers[keyName]) {
       setInitialFetchedDataMarkers(prev => ({ ...prev, [keyName]: false }));
@@ -260,7 +251,7 @@ const ComprehensiveComparator: React.FC = () => {
 
       const { 
         initialInvestment, monthlyContributions, applicationPeriodValue, applicationPeriodUnit,
-        selicRate, cdiRate, ipcaRate, // Selic e TR usados para Poupanca
+        selicRate, cdiRate, ipcaRate, 
         tesouroPrefixadoNominalRate, tesouroCustodyFeeB3,
         tesouroIpcaRealRate,
         cdbRatePercentageOfCdi,
@@ -281,7 +272,6 @@ const ComprehensiveComparator: React.FC = () => {
           return Math.pow(1 + annualRateDecimal, 1/12) - 1;
       };
 
-      // 1. Poupança
       const poupancaMonthlyDecimal = poupancaCalculatedRates.monthly / 100;
       const poupancaSim = calculateFVDirectFormula({ pv: initialInvestment, pmt: monthlyContributions, i: poupancaMonthlyDecimal, n: totalMonths });
       calculatedResults.push({
@@ -299,7 +289,6 @@ const ComprehensiveComparator: React.FC = () => {
 
       const custodyFeeB3AnnualRateDecimal = tesouroCustodyFeeB3 / 100;
 
-      // 2. Tesouro Prefixado
       const tpGrossAnnualRateDecimal_BeforeFee = tesouroPrefixadoNominalRate / 100;
       const tpMonthlyGrossRate_BeforeFee = annualToMonthlyRate(tpGrossAnnualRateDecimal_BeforeFee);
       
@@ -333,7 +322,6 @@ const ComprehensiveComparator: React.FC = () => {
         operationalFeesPaid: tpCustodyAmountTotal,
       });
 
-      // 3. Tesouro IPCA+
       const tipcaRealAnnualDecimal = tesouroIpcaRealRate / 100;
       const ipcaAnnualDecimalUsed = validatedInputs.ipcaRate / 100; 
       const tipcaGrossNominalAnnual_BeforeFee = (1 + tipcaRealAnnualDecimal) * (1 + ipcaAnnualDecimalUsed) - 1;
@@ -370,7 +358,6 @@ const ComprehensiveComparator: React.FC = () => {
 
       const cdiAnnualDecimal = validatedInputs.cdiRate / 100; 
 
-      // 4. CDB (% CDI)
       const cdbAnnualGrossRate = cdiAnnualDecimal * (cdbRatePercentageOfCdi / 100);
       const cdbMonthlyGrossRate = annualToMonthlyRate(cdbAnnualGrossRate);
       
@@ -401,7 +388,6 @@ const ComprehensiveComparator: React.FC = () => {
         operationalFeesPaid: 0,   
       });
       
-      // 5. LCI/LCA (% CDI)
       const lciLcaGrossAnnual = cdiAnnualDecimal * (lciLcaRatePercentageOfCdi / 100);
       const lciLcaMonthly = annualToMonthlyRate(lciLcaGrossAnnual);
       const lciLcaSim = calculateFVDirectFormula({ pv: initialInvestment, pmt: monthlyContributions, i: lciLcaMonthly, n: totalMonths });
@@ -433,11 +419,7 @@ const ComprehensiveComparator: React.FC = () => {
   const commonInputProps = {
     disabled: isLoading || isFetchingEconomicData, 
   };
-  const commonSelectProps = {
-    disabled: isLoading || isFetchingEconomicData,
-  };
-
-  // Tooltip text helpers
+  
   const getSelicTooltip = () => {
     let base = "Taxa Selic Meta anual (SGS 432). Usada para calcular a rentabilidade da Poupança.";
     if (initialFetchedDataMarkers.selicRate && fetchedEcoData?.selicReferenceDate) {
@@ -458,7 +440,7 @@ const ComprehensiveComparator: React.FC = () => {
     let base = "Taxa Referencial (TR) mensal (SGS 226). Usada na Poupança.";
     if (initialFetchedDataMarkers.trRate && fetchedEcoData?.trReferenceDate) {
       base += ` Data de referência (SGS 226): ${fetchedEcoData.trReferenceDate}.`;
-    } else if (!initialFetchedDataMarkers.trRate && !isFetchingEconomicData && !economicDataFetchError?.includes('TR')) { // Manual input and not loading
+    } else if (!initialFetchedDataMarkers.trRate && !isFetchingEconomicData && !economicDataFetchError?.includes('TR')) { 
       base = "Taxa Referencial (TR) mensal. Valor manual.";
     }
     return base;
@@ -477,7 +459,6 @@ const ComprehensiveComparator: React.FC = () => {
         <Card.Title className="text-center">Que aplicação rende mais?</Card.Title>
       </Card.Header>
       <Card.Content className="space-y-8">
-        {/* Seção de Inputs Principais */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-6">
           <FormattedNumericInput
             label="Investimento inicial"
@@ -486,7 +467,7 @@ const ComprehensiveComparator: React.FC = () => {
             value={inputs.initialInvestment}
             onChange={handleFormattedInputChange}
             min={0}
-            icon={<span className="text-gray-400 dark:text-gray-500">R$</span>}
+            icon={<span className="text-slate-400 dark:text-slate-500">R$</span>}
             displayOptions={moneyDisplayOptions}
             {...commonInputProps}
           />
@@ -497,7 +478,7 @@ const ComprehensiveComparator: React.FC = () => {
             value={inputs.monthlyContributions}
             onChange={handleFormattedInputChange}
             min={0}
-            icon={<span className="text-gray-400 dark:text-gray-500">R$</span>}
+            icon={<span className="text-slate-400 dark:text-slate-500">R$</span>}
             displayOptions={moneyDisplayOptions}
             {...commonInputProps}
           />
@@ -528,15 +509,14 @@ const ComprehensiveComparator: React.FC = () => {
           </div>
         </div>
 
-        <hr className="my-6 border-t border-gray-200 dark:border-slate-700/60" />
+        <hr className="my-6 border-t border-slate-200 dark:border-slate-700/60" />
 
-        {/* Seção de Indicadores Econômicos */}
         <div>
           <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-1">
-            <h3 className="text-lg font-semibold text-gray-800 dark:text-blue-400">Indicadores Econômicos (Projeção Anual)</h3>
+            <h3 className="text-lg font-semibold text-slate-700 dark:text-blue-400">Indicadores Econômicos (Projeção Anual)</h3>
             {isFetchingEconomicData && <p className="text-xs text-blue-500 dark:text-blue-400 animate-pulse">Buscando dados atualizados...</p>}
             {fetchedEcoData?.lastUpdated && !isFetchingEconomicData && (
-              <p className="text-xs text-gray-500 dark:text-gray-400">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 Dados com (*) preenchidos automaticamente em: {fetchedEcoData.lastUpdated}
               </p>
             )}
@@ -548,23 +528,23 @@ const ComprehensiveComparator: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-6">
             <FormattedNumericInput 
                 label={<>Selic Efetiva <AutoFetchedMarker isFetched={initialFetchedDataMarkers.selicRate} /> <InfoIcon title={getSelicTooltip()} /></>} 
-                id="selicRate" name="selicRate" value={inputs.selicRate} onChange={handleFormattedInputChange} icon={<span className="text-gray-400 dark:text-gray-500">%</span>} displayOptions={percentDisplayOptions} {...commonInputProps} />
+                id="selicRate" name="selicRate" value={inputs.selicRate} onChange={handleFormattedInputChange} icon={<span className="text-slate-400 dark:text-slate-500">%</span>} displayOptions={percentDisplayOptions} {...commonInputProps} />
             <FormattedNumericInput 
                 label={<>CDI <AutoFetchedMarker isFetched={initialFetchedDataMarkers.cdiRate} /> <InfoIcon title={getCdiTooltip()} /></>} 
-                id="cdiRate" name="cdiRate" value={inputs.cdiRate} onChange={handleFormattedInputChange} icon={<span className="text-gray-400 dark:text-gray-500">%</span>} displayOptions={percentDisplayOptions} {...commonInputProps} />
+                id="cdiRate" name="cdiRate" value={inputs.cdiRate} onChange={handleFormattedInputChange} icon={<span className="text-slate-400 dark:text-slate-500">%</span>} displayOptions={percentDisplayOptions} {...commonInputProps} />
             <FormattedNumericInput 
                 label={<>IPCA <AutoFetchedMarker isFetched={ipcaDisplayConfig.isFetched} /> <InfoIcon title={ipcaDisplayConfig.tooltipText} /></>} 
-                id="ipcaRate" name="ipcaRate" value={inputs.ipcaRate} onChange={handleFormattedInputChange} icon={<span className="text-gray-400 dark:text-gray-500">%</span>} displayOptions={percentDisplayOptions} {...commonInputProps} />
+                id="ipcaRate" name="ipcaRate" value={inputs.ipcaRate} onChange={handleFormattedInputChange} icon={<span className="text-slate-400 dark:text-slate-500">%</span>} displayOptions={percentDisplayOptions} {...commonInputProps} />
             <FormattedNumericInput 
                 label={<>TR (Mensal) <AutoFetchedMarker isFetched={initialFetchedDataMarkers.trRate} /> <InfoIcon title={getTrTooltip()} /></>} 
-                id="trRate" name="trRate" value={inputs.trRate} onChange={handleFormattedInputChange} icon={<span className="text-gray-400 dark:text-gray-500">%</span>} displayOptions={highPrecisionPercentDisplayOptions} min={0} {...commonInputProps}/>
+                id="trRate" name="trRate" value={inputs.trRate} onChange={handleFormattedInputChange} icon={<span className="text-slate-400 dark:text-slate-500">%</span>} displayOptions={highPrecisionPercentDisplayOptions} min={0} {...commonInputProps}/>
           </div>
-          <div className="mt-4 p-3 bg-gray-100 dark:bg-slate-800/60 rounded-lg shadow-inner">
-            <h4 className="text-sm font-medium text-gray-700 dark:text-blue-300 mb-2">
+          <div className="mt-4 p-3 bg-slate-100 dark:bg-slate-700/50 rounded-lg shadow-inner">
+            <h4 className="text-sm font-medium text-slate-700 dark:text-blue-300 mb-2">
                 Rentabilidade Estimada da Poupança
                 <InfoIcon title={getPoupancaTooltip()} />
             </h4>
-            <div className="flex flex-col sm:flex-row justify-around text-xs text-gray-800 dark:text-gray-200">
+            <div className="flex flex-col sm:flex-row justify-around text-xs text-slate-700 dark:text-slate-200">
                 <span className="mb-1 sm:mb-0">
                     Mensal Efetiva: <strong className="text-blue-600 dark:text-blue-400">{formatNumberForDisplay(poupancaCalculatedRates.monthly, {minimumFractionDigits: 4, maximumFractionDigits: 4})}%</strong>
                 </span>
@@ -575,15 +555,13 @@ const ComprehensiveComparator: React.FC = () => {
           </div>
         </div>
         
-        <hr className="my-6 border-t border-gray-200 dark:border-slate-700/60" />
+        <hr className="my-6 border-t border-slate-200 dark:border-slate-700/60" />
 
-        {/* Seção de Parâmetros de Investimentos Específicos */}
         <div>
-          <h3 className="text-lg font-semibold text-gray-800 dark:text-blue-400 mb-4">Parâmetros das Aplicações (Taxas Anuais Brutas, salvo indicação)</h3>
-          <div className="space-y-6"> {/* This div wraps the new groups */}
-            {/* Tesouro Direto Group */}
-            <div className="p-4 rounded-md border border-gray-200 dark:border-slate-700/40 bg-white/30 dark:bg-slate-800/30">
-              <h4 className="text-md font-medium text-gray-700 dark:text-blue-300 mb-3">Tesouro Direto</h4>
+          <h3 className="text-lg font-semibold text-slate-700 dark:text-blue-400 mb-4">Parâmetros das Aplicações (Taxas Anuais Brutas, salvo indicação)</h3>
+          <div className="space-y-6">
+            <div className="p-4 rounded-md border border-slate-200 dark:border-slate-700/50 bg-white/60 dark:bg-slate-700/40">
+              <h4 className="text-md font-medium text-slate-700 dark:text-blue-300 mb-3">Tesouro Direto</h4>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-6">
                 <FormattedNumericInput 
                   label="Tesouro Prefixado (Juro Nominal)" 
@@ -591,7 +569,7 @@ const ComprehensiveComparator: React.FC = () => {
                   name="tesouroPrefixadoNominalRate" 
                   value={inputs.tesouroPrefixadoNominalRate} 
                   onChange={handleFormattedInputChange} 
-                  icon={<span className="text-gray-400 dark:text-gray-500">%</span>} 
+                  icon={<span className="text-slate-400 dark:text-slate-500">%</span>} 
                   displayOptions={percentDisplayOptions} 
                   {...commonInputProps} 
                 />
@@ -601,7 +579,7 @@ const ComprehensiveComparator: React.FC = () => {
                   name="tesouroIpcaRealRate" 
                   value={inputs.tesouroIpcaRealRate} 
                   onChange={handleFormattedInputChange} 
-                  icon={<span className="text-gray-400 dark:text-gray-500">%</span>} 
+                  icon={<span className="text-slate-400 dark:text-slate-500">%</span>} 
                   displayOptions={percentDisplayOptions} 
                   {...commonInputProps} 
                 />
@@ -611,7 +589,7 @@ const ComprehensiveComparator: React.FC = () => {
                   name="tesouroCustodyFeeB3" 
                   value={inputs.tesouroCustodyFeeB3} 
                   onChange={handleFormattedInputChange} 
-                  icon={<span className="text-gray-400 dark:text-gray-500">%</span>} 
+                  icon={<span className="text-slate-400 dark:text-slate-500">%</span>} 
                   displayOptions={percentDisplayOptions} 
                   min={0} max={10} 
                   {...commonInputProps}
@@ -619,9 +597,8 @@ const ComprehensiveComparator: React.FC = () => {
               </div>
             </div>
 
-            {/* Outras Aplicações Bancárias Group */}
-            <div className="p-4 rounded-md border border-gray-200 dark:border-slate-700/40 bg-white/30 dark:bg-slate-800/30">
-              <h4 className="text-md font-medium text-gray-700 dark:text-blue-300 mb-3">Outras Aplicações Bancárias</h4>
+            <div className="p-4 rounded-md border border-slate-200 dark:border-slate-700/50 bg-white/60 dark:bg-slate-700/40">
+              <h4 className="text-md font-medium text-slate-700 dark:text-blue-300 mb-3">Outras Aplicações Bancárias</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-6">
                 <FormattedNumericInput 
                   label={<>Rent. CDB (% do CDI) <InfoIcon title="Percentual da taxa CDI que o CDB renderá anualmente (bruto)."/></>} 
@@ -629,7 +606,7 @@ const ComprehensiveComparator: React.FC = () => {
                   name="cdbRatePercentageOfCdi" 
                   value={inputs.cdbRatePercentageOfCdi} 
                   onChange={handleFormattedInputChange} 
-                  icon={<span className="text-gray-400 dark:text-gray-500">%</span>} 
+                  icon={<span className="text-slate-400 dark:text-slate-500">%</span>} 
                   displayOptions={integerPercentDisplayOptions} 
                   {...commonInputProps} 
                 />
@@ -639,7 +616,7 @@ const ComprehensiveComparator: React.FC = () => {
                   name="lciLcaRatePercentageOfCdi" 
                   value={inputs.lciLcaRatePercentageOfCdi} 
                   onChange={handleFormattedInputChange} 
-                  icon={<span className="text-gray-400 dark:text-gray-500">%</span>} 
+                  icon={<span className="text-slate-400 dark:text-slate-500">%</span>} 
                   displayOptions={integerPercentDisplayOptions} 
                   {...commonInputProps} 
                 />
@@ -648,7 +625,7 @@ const ComprehensiveComparator: React.FC = () => {
           </div>
         </div>
         
-        <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
+        <p className="text-xs text-slate-500 dark:text-slate-400 text-center">
           Esses são os parâmetros padrões utilizados na sua simulação. Você pode alterá-los e refazer os cálculos para uma simulação avançada. As taxas anuais são convertidas para mensais para o cálculo com aportes. O prazo para IR é calculado com base em dias corridos (365,25 dias/ano).
         </p>
 
@@ -688,17 +665,17 @@ const ComprehensiveComparator: React.FC = () => {
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
-                    <p className="text-gray-500 dark:text-gray-400 mt-4">Analisando todas as aplicações...</p>
+                    <p className="text-slate-500 dark:text-slate-400 mt-4">Analisando todas as aplicações...</p>
                 </div>
             </div>
         )}
 
         {!isLoading && results && results.length > 0 && (
           <div className="mt-6">
-            <h3 className="text-xl font-semibold text-center text-gray-800 dark:text-blue-300 mb-6">Resultados do Comparativo</h3>
+            <h3 className="text-xl font-semibold text-center text-slate-700 dark:text-blue-300 mb-6">Resultados do Comparativo</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {results.map((res, index) => (
-                <Card key={res.name} className={`shadow-lg ${index === 0 ? 'border-2 border-green-500 dark:border-green-400' : ''}`}>
+                <Card key={res.name} className={`shadow-premium ${index === 0 ? 'border-2 border-green-500 dark:border-green-400' : ''}`}>
                   <Card.Header className={index === 0 ? 'bg-green-50 dark:bg-green-900/30' : ''}>
                     <Card.Title className="flex justify-between items-center">
                       <span>{index + 1}. {res.name}</span>
@@ -707,43 +684,43 @@ const ComprehensiveComparator: React.FC = () => {
                   </Card.Header>
                   <Card.Content className="space-y-2 text-sm">
                     <div className="flex justify-between">
-                      <span className="text-gray-600 dark:text-gray-400">Valor Líquido Final:</span>
+                      <span className="text-slate-600 dark:text-slate-400">Valor Líquido Final:</span>
                       <span className="font-bold text-lg text-primary dark:text-primary-light">{formatCurrency(res.netBalance)}</span>
                     </div>
-                     <hr className="my-1 border-gray-200 dark:border-slate-700/50"/>
+                     <hr className="my-1 border-slate-200 dark:border-slate-700/50"/>
                     <div className="flex justify-between">
-                      <span className="text-gray-600 dark:text-gray-400">Total Investido:</span>
-                      <span className="font-medium text-gray-800 dark:text-gray-200">{formatCurrency(res.totalInvested)}</span>
+                      <span className="text-slate-600 dark:text-slate-400">Total Investido:</span>
+                      <span className="font-medium text-slate-800 dark:text-slate-200">{formatCurrency(res.totalInvested)}</span>
                     </div>
                      <div className="flex justify-between">
-                      <span className="text-gray-600 dark:text-gray-400" title="Juros totais após taxas operacionais (como custódia B3), antes do Imposto de Renda.">Juros Pós-Taxas Op. (pré-IR):</span>
+                      <span className="text-slate-600 dark:text-slate-400" title="Juros totais após taxas operacionais (como custódia B3), antes do Imposto de Renda.">Juros Pós-Taxas Op. (pré-IR):</span>
                       <span className="font-medium text-green-600 dark:text-green-500">{formatCurrency(res.totalInterestEarned)}</span>
                     </div>
                     {res.operationalFeesPaid !== undefined && res.operationalFeesPaid > 0 && ( 
                         <div className="flex justify-between">
-                          <span className="text-gray-600 dark:text-gray-400">Taxas Operacionais Pagas:</span>
+                          <span className="text-slate-600 dark:text-slate-400">Taxas Operacionais Pagas:</span>
                           <span className="font-medium text-orange-600 dark:text-orange-500">(-) {formatCurrency(res.operationalFeesPaid)}</span>
                         </div>
                     )}
                     <div className="flex justify-between">
-                      <span className="text-gray-600 dark:text-gray-400" title="Saldo após juros e taxas operacionais (como custódia B3), antes do Imposto de Renda.">Valor Bruto (Pós-Taxas Op., pré-IR):</span>
-                      <span className="font-medium text-gray-800 dark:text-gray-200">{formatCurrency(res.finalGrossBalance)}</span>
+                      <span className="text-slate-600 dark:text-slate-400" title="Saldo após juros e taxas operacionais (como custódia B3), antes do Imposto de Renda.">Valor Bruto (Pós-Taxas Op., pré-IR):</span>
+                      <span className="font-medium text-slate-800 dark:text-slate-200">{formatCurrency(res.finalGrossBalance)}</span>
                     </div>
                     {res.irAmount > 0 && (
                       <>
                         <div className="flex justify-between">
-                          <span className="text-gray-600 dark:text-gray-400">Alíquota IR Aplicada:</span>
+                          <span className="text-slate-600 dark:text-slate-400">Alíquota IR Aplicada:</span>
                           <span className="font-medium text-red-600 dark:text-red-500">{res.irRateAppliedPercent.toFixed(1)}%</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-gray-600 dark:text-gray-400">IR Pago (Estimado):</span>
+                          <span className="text-slate-600 dark:text-slate-400">IR Pago (Estimado):</span>
                           <span className="font-medium text-red-600 dark:text-red-500">(-) {formatCurrency(res.irAmount)}</span>
                         </div>
                       </>
                     )}
                      <div className="pt-2 space-y-0.5">
                         {res.effectiveAnnualRateUsedPercent !== undefined && (
-                            <p className="text-xs text-gray-500 dark:text-gray-400" 
+                            <p className="text-xs text-slate-500 dark:text-slate-400" 
                                title={
                                  (res.name.startsWith("LCI/LCA") || res.name.startsWith("Poupança")) ? "Taxa Anual Efetiva (isenta/líquida) usada na simulação." :
                                  (res.name.startsWith("Tesouro")) ? "Taxa Anual Bruta base (pré-taxa B3 e pré-IR) usada para cálculo." :
@@ -757,7 +734,7 @@ const ComprehensiveComparator: React.FC = () => {
                             </p>
                         )}
                         {res.effectiveMonthlyRateUsedPercent !== undefined && (
-                            <p className="text-xs text-gray-500 dark:text-gray-400"
+                            <p className="text-xs text-slate-500 dark:text-slate-400"
                                 title={
                                   (res.name.startsWith("LCI/LCA") || res.name.startsWith("Poupança")) ? "Taxa Mensal Efetiva (isenta/líquida) usada na simulação." :
                                   (res.name.startsWith("Tesouro")) ? "Taxa Mensal Bruta base (precisão total, pré-taxa B3 e pré-IR) usada para cálculo." :
@@ -775,7 +752,7 @@ const ComprehensiveComparator: React.FC = () => {
                 </Card>
               ))}
             </div>
-             <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-6 pt-4 border-t border-gray-200 dark:border-slate-700/60">
+             <p className="text-xs text-slate-500 dark:text-slate-400 text-center mt-6 pt-4 border-t border-slate-200 dark:border-slate-700/60">
               <strong>Atenção:</strong> Os cálculos são simulações e podem não refletir a rentabilidade exata devido a arredondamentos, simplificações e volatilidade do mercado. Para Tesouro IPCA+, a inflação (IPCA) utilizada é a projetada. Para Tesouro Direto, a taxa de custódia da B3 é estimada como um percentual sobre o valor bruto final acumulado, proporcional ao prazo da aplicação. Consulte um profissional financeiro.
             </p>
           </div>

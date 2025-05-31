@@ -1,23 +1,23 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { InputFormData, ScenarioData, AppView, BtcPriceInfo, UsdtPriceInfo } from './types';
-import { DEFAULT_INPUT_VALUES } from './constants';
-import { calculateProjection } from './utils/calculations';
-import InputForm from './components/InputForm';
-import ResultsDisplay from './components/ResultsDisplay'; 
-import ThemeToggle from './components/ThemeToggle';
-import { Card } from './components/ui/Card';
-import Button from './components/ui/Button';
-import FixedIncomeComparator from './components/FixedIncomeComparator';
-import ComprehensiveComparator from './components/ComprehensiveComparator'; 
-import BitcoinRateDisplay from './components/BitcoinRateDisplay'; 
-import UsdtRateDisplay from './components/UsdtRateDisplay';
-import MacroEconomicPanel from './components/MacroEconomicPanel'; 
-import TerminalView from './components/TerminalView';
-import BitcoinDetailedChart from './components/BitcoinDetailedChart';
-import UsdtDetailedChart from './components/UsdtDetailedChart'; // Added
-import { fetchLatestBitcoinPrice, fetchLatestUsdtPrice } from './utils/economicIndicatorsAPI';
-import { formatCurrency, formatNumberForDisplay, formatNumber } from './utils/formatters';
+import { InputFormData, ScenarioData, AppView, BtcPriceInfo, UsdtPriceInfo } from './types.ts';
+import { DEFAULT_INPUT_VALUES } from './constants.ts';
+import { calculateProjection } from './utils/calculations.ts';
+import InputForm from './components/InputForm.tsx';
+import ResultsDisplay from './components/ResultsDisplay.tsx'; 
+import ThemeToggle from './components/ThemeToggle.tsx';
+import { Card } from './components/ui/Card.tsx';
+import Button from './components/ui/Button.tsx';
+import FixedIncomeComparator from './components/FixedIncomeComparator.tsx';
+import ComprehensiveComparator from './components/ComprehensiveComparator.tsx'; 
+import BitcoinRateDisplay from './components/BitcoinRateDisplay.tsx'; 
+import UsdtRateDisplay from './components/UsdtRateDisplay.tsx';
+import MacroEconomicPanel from './components/MacroEconomicPanel.tsx'; 
+import TerminalView from './components/TerminalView.tsx';
+import BitcoinDetailedChart from './components/BitcoinDetailedChart.tsx';
+import UsdtDetailedChart from './components/UsdtDetailedChart.tsx'; // Added
+import { fetchLatestBitcoinPrice, fetchLatestUsdtPrice } from './utils/economicIndicatorsAPI.ts';
+import { formatCurrency, formatNumberForDisplay, formatNumber } from './utils/formatters.ts';
 
 const App: React.FC = () => {
   const [inputValues, setInputValues] = useState<InputFormData>(DEFAULT_INPUT_VALUES);

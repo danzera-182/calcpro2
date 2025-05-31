@@ -25,11 +25,11 @@ const CardRoot: React.FC<CardRootProps> = ({ children, className, ...rest }) => 
   return (
     <div 
       className={`
-        bg-white/75 dark:bg-slate-800/75 
+        bg-white dark:bg-slate-800/80 
         backdrop-blur-xl 
-        shadow-xl rounded-2xl 
+        shadow-premium rounded-2xl 
         overflow-hidden 
-        border border-gray-200/60 dark:border-slate-700/60
+        border border-gray-200 dark:border-slate-700
         ${className || ''}
       `} 
       {...rest}
@@ -40,15 +40,15 @@ const CardRoot: React.FC<CardRootProps> = ({ children, className, ...rest }) => 
 };
 
 const CardHeader: React.FC<CardHeaderProps> = ({ children, className = '', ...rest }) => {
-  return <div className={`p-4 sm:p-5 border-b border-slate-900/10 dark:border-slate-50/10 ${className}`} {...rest}>{children}</div>;
+  return <div className={`p-5 sm:p-6 border-b border-slate-200 dark:border-slate-700/60 ${className}`} {...rest}>{children}</div>;
 };
 
 const CardTitle: React.FC<CardTitleProps> = ({ children, className = '', ...rest }) => {
-  return <h2 className={`text-lg sm:text-xl font-semibold text-gray-900 dark:text-white ${className}`} {...rest}>{children}</h2>;
+  return <h2 className={`text-lg sm:text-xl font-semibold text-slate-700 dark:text-slate-200 ${className}`} {...rest}>{children}</h2>;
 };
 
 const CardContent: React.FC<CardContentProps> = ({ children, className = '', ...rest }) => {
-  return <div className={`p-4 sm:p-5 ${className}`} {...rest}>{children}</div>;
+  return <div className={`p-5 sm:p-6 ${className}`} {...rest}>{children}</div>;
 };
 
 export const Card = Object.assign(CardRoot, {

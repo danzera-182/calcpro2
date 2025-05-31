@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { HistoricalDataPoint, IndicatorModalData } from '../types';
 import { useTheme } from '../hooks/useTheme';
@@ -63,10 +63,24 @@ const CustomTooltipContent: React.FC<any> = ({ active, payload, label, indicator
 
 const HistoricalLineChart: React.FC<HistoricalLineChartProps> = ({ data, indicatorConfig, isLoading, error }) => {
   const { theme } = useTheme();
+  const chartContainerRef = useRef<HTMLDivElement>(null);
   const axisLabelColor = theme === 'dark' ? '#9CA3AF' : '#6B7280';
   const tickColor = theme === 'dark' ? '#D1D5DB' : '#374151';
   const gridColor = theme === 'dark' ? '#4B5563' : '#D1D5DB';
   const lineStrokeColor = theme === 'dark' ? '#60A5FA' : '#2563EB'; 
+
+  useEffect(() => {
+    const chartNode = chartContainerRef.current;
+    if (chartNode) {
+      const handleTouchMove = (event: TouchEvent) => {
+        event.preventDefault();
+      };
+      chartNode.addEventListener('touchmove', handleTouchMove, { passive: false });
+      return () => {
+        chartNode.removeEventListener('touchmove', handleTouchMove, { passive: false } as any);
+      };
+    }
+  }, []);
 
   const formatDateForAxis = (dateString: string, isDailyData?: boolean): string => {
     try {
@@ -138,7 +152,7 @@ const HistoricalLineChart: React.FC<HistoricalLineChartProps> = ({ data, indicat
   // else if (maxValue < 0 && maxValue > minValue * 0.1) yDomain = ['auto', 0];
 
   return (
-    <div style={{ width: '100%', height: 300 }}>
+    <div ref={chartContainerRef} style={{ width: '100%', height: 300, touchAction: 'manipulation' }}>
       <ResponsiveContainer>
         <LineChart data={data} margin={{ top: 5, right: 20, left: 20, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />

@@ -71,7 +71,7 @@ const InputForm: React.FC<InputFormProps> = ({
     if (type === 'number') {
       parsedValue = value === '' ? 0 : (name === 'expectedInflationRate' ? parseFloat(value) : parseInt(value, 10));
       if (parsedValue < 0 && name !== 'expectedInflationRate') parsedValue = 0;
-    } else if (type === 'checkbox') { // Should not happen with ToggleSwitch, but good for robustness
+    } else if (type === 'checkbox') { 
         parsedValue = (e.target as HTMLInputElement).checked;
     }
     onFormChange({ [name]: parsedValue });
@@ -79,7 +79,6 @@ const InputForm: React.FC<InputFormProps> = ({
 
   const handleToggleChange = (name: string, checked: boolean) => {
     onFormChange({ [name]: checked });
-     // If disabling advanced simulation, also disable sub-modes
     if (name === 'enableAdvancedSimulation' && !checked) {
       onFormChange({
         advancedSimModeRetirement: false,
@@ -111,7 +110,7 @@ const InputForm: React.FC<InputFormProps> = ({
 
   const addSpecificContribution = () => {
     const newContribution: SpecificContribution = {
-      id: Date.now().toString(), // Simple unique ID
+      id: Date.now().toString(), 
       year: 1,
       month: 1,
       amount: 0,
@@ -124,7 +123,6 @@ const InputForm: React.FC<InputFormProps> = ({
     onFormChange({ specificContributions: (inputValues.specificContributions || []).filter(c => c.id !== id) });
   };
 
-  // Calculate equivalent monthly rate for display purposes
   const annualRateDecimal = inputValues.rateValue / 100;
   let monthlyEquivalentRatePercent = 0;
   if (annualRateDecimal > -1) {
@@ -139,7 +137,7 @@ const InputForm: React.FC<InputFormProps> = ({
   }
 
   const renderAverageValue = (data: DynamicHistoricalAverage, label: string) => {
-    if (data.isLoading) return <span className="text-xs text-gray-500 dark:text-gray-400">Carregando {label}...</span>;
+    if (data.isLoading) return <span className="text-xs text-slate-500 dark:text-slate-400">Carregando {label}...</span>;
     if (data.error) return <span className="text-xs text-red-500 dark:text-red-400">Erro ao buscar {label}.</span>;
     if (data.value !== null) {
       return (
@@ -148,12 +146,12 @@ const InputForm: React.FC<InputFormProps> = ({
         </span>
       );
     }
-    return <span className="text-xs text-gray-500 dark:text-gray-400">{label}: N/D</span>;
+    return <span className="text-xs text-slate-500 dark:text-slate-400">{label}: N/D</span>;
   };
 
 
   return (
-    <form onSubmit={(e) => e.preventDefault()} className="space-y-6">
+    <form onSubmit={(e) => e.preventDefault()} className="space-y-7">
       <FormattedNumericInput
         label="Valor Inicial (R$)"
         id="initialInvestment"
@@ -161,7 +159,7 @@ const InputForm: React.FC<InputFormProps> = ({
         value={inputValues.initialInvestment}
         onChange={handleFormattedChange}
         min={0}
-        icon={<span className="text-gray-400 dark:text-gray-500">R$</span>}
+        icon={<span className="text-slate-400 dark:text-slate-500">R$</span>}
         displayOptions={{ minimumFractionDigits: 2, maximumFractionDigits: 2 }}
         disabled={isLoading}
       />
@@ -175,14 +173,14 @@ const InputForm: React.FC<InputFormProps> = ({
         onChange={handleDirectChange}
         min="1"
         step="1"
-        icon={<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-gray-400 dark:text-gray-500">
+        icon={<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-slate-400 dark:text-slate-500">
           <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5m-9-3.75h.008v.008H12v-.008Z" />
         </svg>}
         disabled={isLoading || (inputValues.enableAdvancedSimulation && inputValues.advancedSimModeRetirement)}
         title={ (inputValues.enableAdvancedSimulation && inputValues.advancedSimModeRetirement) ? "Definido pela Idade Atual e Idade Alvo na Simulação de Aposentadoria" : "Período total da simulação em anos."}
       />
       
-      <div className="pt-5 border-t border-gray-200 dark:border-slate-700/60 space-y-5">
+      <div className="pt-5 border-t border-slate-200 dark:border-slate-700/60 space-y-5">
         <FormattedNumericInput
           label="Aporte Mensal (R$)"
           id="contributionValue"
@@ -190,7 +188,7 @@ const InputForm: React.FC<InputFormProps> = ({
           value={inputValues.contributionValue}
           onChange={handleFormattedChange}
           min={0}
-          icon={<span className="text-gray-400 dark:text-gray-500">R$</span>}
+          icon={<span className="text-slate-400 dark:text-slate-500">R$</span>}
           displayOptions={{ minimumFractionDigits: 2, maximumFractionDigits: 2 }}
           disabled={isLoading}
         />
@@ -203,19 +201,18 @@ const InputForm: React.FC<InputFormProps> = ({
           onChange={handleFormattedChange}
           max={1000} 
           min={-100} 
-          icon={<span className="text-gray-400 dark:text-gray-500">%</span>}
+          icon={<span className="text-slate-400 dark:text-slate-500">%</span>}
           displayOptions={{ minimumFractionDigits: 2, maximumFractionDigits: 4 }}
           disabled={isLoading}
         />
-        <p className="text-xs text-gray-500 dark:text-gray-400 -mt-3">
+        <p className="text-xs text-slate-500 dark:text-slate-400 -mt-3">
           Taxa Anual: {formatNumberForDisplay(inputValues.rateValue, {minimumFractionDigits:2, maximumFractionDigits:2})}% a.a. 
           (Equivalente a aprox. {monthlyEquivalentRatePercent.toFixed(4)}% a.m. para os cálculos com aportes mensais.)
         </p>
 
-        {/* Advanced Simulation Section - Moved Up */}
-        <div className="pt-5 border-t border-gray-200 dark:border-slate-700/60 space-y-4">
+        <div className="pt-5 border-t border-slate-200 dark:border-slate-700/60 space-y-5">
             <div className="flex items-center justify-between">
-            <label htmlFor="enableAdvancedSimulation" className="text-md font-semibold text-gray-800 dark:text-blue-400">
+            <label htmlFor="enableAdvancedSimulation" className="text-md font-semibold text-slate-800 dark:text-blue-400">
                 Simular aposentadoria e aportes personalizados
             </label>
             <ToggleSwitch
@@ -227,10 +224,9 @@ const InputForm: React.FC<InputFormProps> = ({
             </div>
 
             {inputValues.enableAdvancedSimulation && (
-            <Card className="p-4 space-y-4 bg-slate-50/50 dark:bg-slate-800/30 shadow-inner">
-                {/* Retirement Simulation Toggle */}
+            <Card className="p-4 space-y-5 bg-slate-100/70 dark:bg-slate-700/50 shadow-inner">
                 <div className="flex items-center justify-between">
-                <label htmlFor="advancedSimModeRetirement" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                <label htmlFor="advancedSimModeRetirement" className="text-sm font-medium text-slate-700 dark:text-slate-300">
                     Simular Aposentadoria <InfoTooltip text="Calcular projeção focada em objetivos de aposentadoria." />
                 </label>
                 <ToggleSwitch
@@ -241,14 +237,13 @@ const InputForm: React.FC<InputFormProps> = ({
                 />
                 </div>
 
-                {/* Retirement Inputs */}
                 {inputValues.advancedSimModeRetirement && (
                 <div className="pl-4 border-l-2 border-blue-500 dark:border-blue-400 space-y-4 pt-2 pb-2">
                     <Input label={<>Idade Atual <InfoTooltip text="Sua idade atual." /></>} type="number" id="currentAge" name="currentAge" value={inputValues.currentAge?.toString() || ''} onChange={handleDirectChange} min="0" disabled={isLoading} />
                     <Input label={<>Idade Alvo para Aposentadoria <InfoTooltip text="Com que idade você planeja se aposentar." /></>} type="number" id="targetAge" name="targetAge" value={inputValues.targetAge?.toString() || ''} onChange={handleDirectChange} min={(inputValues.currentAge || 0) + 1} disabled={isLoading} />
                     
                     <div className="flex items-center justify-between">
-                    <label htmlFor="adjustContributionsForInflation" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <label htmlFor="adjustContributionsForInflation" className="text-sm font-medium text-slate-700 dark:text-slate-300">
                         Ajustar Aportes e Renda pela Inflação? <InfoTooltip text="Se selecionado, os aportes mensais e a renda desejada na aposentadoria serão corrigidos anualmente pela inflação esperada." />
                     </label>
                     <ToggleSwitch
@@ -267,7 +262,7 @@ const InputForm: React.FC<InputFormProps> = ({
                         value={inputValues.expectedInflationRate ?? null}
                         onChange={handleFormattedChange}
                         min={-100} max={100}
-                        icon={<span className="text-gray-400 dark:text-gray-500">%</span>}
+                        icon={<span className="text-slate-400 dark:text-slate-500">%</span>}
                         displayOptions={{ minimumFractionDigits: 1, maximumFractionDigits: 2 }}
                         disabled={isLoading}
                     />
@@ -291,16 +286,15 @@ const InputForm: React.FC<InputFormProps> = ({
                     value={inputValues.desiredMonthlyIncomeToday ?? null}
                     onChange={handleFormattedChange}
                     min={0}
-                    icon={<span className="text-gray-400 dark:text-gray-500">R$</span>}
+                    icon={<span className="text-slate-400 dark:text-slate-500">R$</span>}
                     displayOptions={{ minimumFractionDigits: 2, maximumFractionDigits: 2 }}
                     disabled={isLoading}
                     />
                 </div>
                 )}
 
-                {/* Specific Contributions Toggle */}
-                <div className="flex items-center justify-between pt-3 mt-3 border-t border-gray-200 dark:border-slate-700/60">
-                <label htmlFor="advancedSimModeSpecificContributions" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                <div className="flex items-center justify-between pt-3 mt-3 border-t border-slate-200 dark:border-slate-700/60">
+                <label htmlFor="advancedSimModeSpecificContributions" className="text-sm font-medium text-slate-700 dark:text-slate-300">
                     Definir Aportes Específicos <InfoTooltip text="Adicionar aportes únicos em datas específicas da simulação."/>
                 </label>
                 <ToggleSwitch
@@ -311,11 +305,10 @@ const InputForm: React.FC<InputFormProps> = ({
                 />
                 </div>
                 
-                {/* Specific Contributions Inputs */}
                 {inputValues.advancedSimModeSpecificContributions && (
                 <div className="pl-4 border-l-2 border-green-500 dark:border-green-400 space-y-3 pt-2 pb-2">
                     {(inputValues.specificContributions || []).map((contrib, index) => (
-                    <Card key={contrib.id} className="p-3 bg-white/70 dark:bg-slate-700/50 shadow-sm">
+                    <Card key={contrib.id} className="p-3 bg-white/80 dark:bg-slate-600/60 shadow-sm">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-start">
                         <FormattedNumericInput
                             label={`Aporte #${index + 1} (R$)`}
@@ -370,15 +363,15 @@ const InputForm: React.FC<InputFormProps> = ({
             )}
         </div>
         
-        <Card className="bg-gray-50 dark:bg-slate-800/50 p-2 rounded-lg shadow-inner">
-          <Card.Header className="p-1 mb-1">
-            <Card.Title className="text-xs font-semibold text-blue-600 dark:text-blue-400">
+        <Card className="bg-slate-100/70 dark:bg-slate-700/50 p-3 sm:p-4 rounded-lg shadow-inner">
+          <Card.Header className="p-1 mb-1 !border-b-0">
+            <Card.Title className="text-sm font-semibold text-blue-600 dark:text-blue-400">
               Não sabe qual taxa utilizar? 🤔💡
             </Card.Title>
           </Card.Header>
-          <Card.Content className="p-1 space-y-1 text-xs">
+          <Card.Content className="p-1 space-y-2 text-xs">
             <div className="flex justify-between items-center">
-              {renderAverageValue(cdiAverageData, 'CDI (últimos 20a)')}
+              <span className="text-slate-600 dark:text-slate-300">{renderAverageValue(cdiAverageData, 'CDI (últimos 20a)')}</span>
               <Button 
                 size="sm" variant="ghost" 
                 onClick={() => cdiAverageData.value !== null && onFormChange({ rateValue: cdiAverageData.value })} 
@@ -389,7 +382,7 @@ const InputForm: React.FC<InputFormProps> = ({
               </Button>
             </div>
              <div className="flex justify-between items-center">
-              {renderAverageValue(ipcaAverageData, 'IPCA (últimos 20a)')}
+              <span className="text-slate-600 dark:text-slate-300">{renderAverageValue(ipcaAverageData, 'IPCA (últimos 20a)')}</span>
                {inputValues.enableAdvancedSimulation && inputValues.advancedSimModeRetirement && inputValues.adjustContributionsForInflation ? (
                 <Button 
                     size="sm" variant="ghost" 
@@ -403,15 +396,13 @@ const InputForm: React.FC<InputFormProps> = ({
                  <InfoTooltip text="Ative 'Simular Aposentadoria' e 'Ajustar pela Inflação' para usar este valor como referência de inflação."/>
                )}
             </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400 italic pt-0.5">
+            <p className="text-xs text-slate-500 dark:text-slate-400 italic pt-1">
               Médias calculadas a partir de dados históricos mensais do Banco Central do Brasil (BCB).
               Período da média pode variar conforme disponibilidade dos dados.
             </p>
           </Card.Content>
         </Card>
-
       </div>
-
 
       <Button
         type="button"

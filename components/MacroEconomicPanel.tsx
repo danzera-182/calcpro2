@@ -66,28 +66,25 @@ const WarningIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
 const getValidatedAndPotentiallyCorrectedPercentage = (
   value: number | undefined | null,
   indicatorNameForLog: string,
-  isPibOrPrimarySurplus: boolean // Kept for consistency, might not be needed if primary surplus is removed
+  isPibOrPrimarySurplus: boolean 
 ): number | undefined | null => {
   if (value === undefined || value === null) {
     return value; 
   }
 
   let potentiallyCorrectedValue = value;
-  // Heuristic for extremely large values that might indicate a scale error (e.g. value in millions instead of unit for % of PIB)
   const HEURISTIC_LARGE_PERCENTAGE_THRESHOLD = 10000; 
-  const HEURISTIC_DIVISION_FACTOR = 1000000; // Example, adjust based on observed anomalies
+  const HEURISTIC_DIVISION_FACTOR = 1000000; 
 
-  // Apply correction only if it's a PIB-related percentage AND looks suspiciously large
   if (isPibOrPrimarySurplus && typeof value === 'number' && Math.abs(value) > HEURISTIC_LARGE_PERCENTAGE_THRESHOLD) {
     console.warn(`[Data Correction Heuristic] Anomalously large percentage ${value} for ${indicatorNameForLog}. Assuming error and dividing by ${HEURISTIC_DIVISION_FACTOR}.`);
     potentiallyCorrectedValue = value / HEURISTIC_DIVISION_FACTOR;
   }
 
-  // General anomaly check after potential correction
-  const STANDARD_ANOMALY_THRESHOLD = 1000; // A debt-to-GDP of 1000% is highly anomalous
+  const STANDARD_ANOMALY_THRESHOLD = 1000; 
   if (typeof potentiallyCorrectedValue === 'number' && Math.abs(potentiallyCorrectedValue) > STANDARD_ANOMALY_THRESHOLD) {
     console.warn(`[Data Validation] Anomalous percentage value for ${indicatorNameForLog} after potential correction: ${potentiallyCorrectedValue}. Displaying as 'N/D'.`);
-    return undefined; // Mark as Not Available due to anomaly
+    return undefined; 
   }
   return potentiallyCorrectedValue;
 };
@@ -131,13 +128,13 @@ const MacroEconomicPanel: React.FC<MacroEconomicPanelProps> = ({ setActiveView }
             };
             errorsCombined = [...errorsCombined, ...fetchedEcoData.errors.map(e => errorKeyMap[e] || `${e}`)];
         }
-        if(!fetchedUsdRate && (!fetchedEcoData?.errors || !fetchedEcoData.errors.find(e => e.toLowerCase().includes("dólar")))) { // Check if Dolar not in error list
+        if(!fetchedUsdRate && (!fetchedEcoData?.errors || !fetchedEcoData.errors.find(e => e.toLowerCase().includes("dólar")))) { 
             errorsCombined.push("Dólar PTAX");
         }
 
 
         if (errorsCombined.length > 0) {
-           const totalIndicators = 13; // Adjusted for M2
+           const totalIndicators = 13; 
            if (errorsCombined.length >= totalIndicators - 2) { 
              setError("Falha ao buscar a maioria dos indicadores. Verifique sua conexão com a internet, desative bloqueadores de anúncio ou tente novamente mais tarde.");
            } else {
@@ -176,7 +173,6 @@ const MacroEconomicPanel: React.FC<MacroEconomicPanelProps> = ({ setActiveView }
       if (seriesType === 'PTAX') {
         rawData = await fetchHistoricalPtAXData(startDate, endDate);
       } else {
-        // For other SGS codes, including those potentially needing specific calculations (not yet implemented here but structure allows)
         rawData = await fetchHistoricalSgsData(identifier, startDate, endDate);
       }
 
@@ -214,7 +210,7 @@ const MacroEconomicPanel: React.FC<MacroEconomicPanelProps> = ({ setActiveView }
     if (type === 'dayMonthYear' && refDate.length === 10 && refDate.split('/').length === 3) { 
         return `Ref: ${refDate}`;
     }
-    if (refDate.length === 7 && refDate.includes('/')) { // Fallback for MM/YYYY if not explicitly specified
+    if (refDate.length === 7 && refDate.includes('/')) { 
         return `Ref: ${refDate}`;
     }
     return `Ref: ${refDate}`;
@@ -289,7 +285,7 @@ const MacroEconomicPanel: React.FC<MacroEconomicPanelProps> = ({ setActiveView }
         title: "IPCA (Inflação)", 
         sgsCode: 433, 
         currentValue: getValidatedAndPotentiallyCorrectedPercentage(ecoData?.ipcaRate, "IPCA (Inflação)", false), 
-        valueSuffix: ecoData?.ipcaSourceType === 'accumulated12m' ? "%" : "% a.a.", // Suffix changes based on source
+        valueSuffix: ecoData?.ipcaSourceType === 'accumulated12m' ? "%" : "% a.a.", 
         valuePrecision: 2,
         referenceText: formatIpcaReference(ecoData?.ipcaSourceType, ecoData?.ipcaReferenceDate),
         sourceText: ecoData?.ipcaSourceType === 'projection' ? "BCB-Focus/SGS 433" : "BCB-SGS 13522/433",
@@ -302,7 +298,7 @@ const MacroEconomicPanel: React.FC<MacroEconomicPanelProps> = ({ setActiveView }
         title: "IGP-M (Inflação)", 
         sgsCode: 189, 
         currentValue: getValidatedAndPotentiallyCorrectedPercentage(ecoData?.igpmRate, "IGP-M (Inflação)", false), 
-        valueSuffix: "%", // Is accumulated 12m
+        valueSuffix: "%", 
         valuePrecision: 2, 
         referenceText: ecoData?.igpmReferenceDate ? `Acum. 12m (calc. SGS 189) até ${ecoData.igpmReferenceDate}` : 'Acum. 12m (calc. SGS 189)', 
         sourceText: "BCB-SGS 189 (FGV)", 
@@ -311,7 +307,7 @@ const MacroEconomicPanel: React.FC<MacroEconomicPanelProps> = ({ setActiveView }
       },
        {
         title: "Dólar PTAX (Venda)", sgsCode: 'PTAX', currentValue: usdRateInfo?.rate, 
-        valueSuffix: "", // Handled by displayPrefix/SuffixOverride
+        valueSuffix: "", 
         valuePrecision: 4,
         displayPrefix: "R$ ",
         displaySuffixOverride: "",
@@ -321,9 +317,9 @@ const MacroEconomicPanel: React.FC<MacroEconomicPanelProps> = ({ setActiveView }
       },
       {
         title: "M2 (Base Monetária)", sgsCode: 27842, 
-        currentValue: ecoData?.m2BalanceSGS27842, // Value in "Milhares de R$"
-        valuePrecision: 1, // For "6,5 tri R$"
-        displayDivisor: 1000000000, // Milhares to Trilhões
+        currentValue: ecoData?.m2BalanceSGS27842, 
+        valuePrecision: 1, 
+        displayDivisor: 1000000000, 
         displayPrefix: "R$ ",
         displaySuffixOverride: " tri",
         referenceText: formatReferenceDate(ecoData?.m2BalanceSGS27842ReferenceDate, 'monthYear'), 
@@ -363,7 +359,7 @@ const MacroEconomicPanel: React.FC<MacroEconomicPanelProps> = ({ setActiveView }
       {
         title: "IBC-Br (Atividade Econ.)", sgsCode: 24364, 
         currentValue: getValidatedAndPotentiallyCorrectedPercentage(ecoData?.ibcBrRate, "IBC-Br (Atividade Econ.)", false), 
-        valueSuffix: "%", // Is accumulated 12m
+        valueSuffix: "%", 
         valuePrecision: 2,
         referenceText: `Acum. 12m até ${ecoData?.ibcBrReferenceDate || 'N/D'}`, sourceText: "BCB-SGS 24364",
         description: "O Índice de Atividade Econômica do Banco Central (IBC-Br) com ajuste sazonal (SGS 24364) é considerado uma 'prévia' do PIB. O valor exibido no card é a variação acumulada nos últimos 12 meses, calculada a partir do índice. O gráfico histórico mostra a evolução do próprio índice (Base: 2002=100).",
@@ -372,34 +368,34 @@ const MacroEconomicPanel: React.FC<MacroEconomicPanelProps> = ({ setActiveView }
       },
       {
         title: "Reservas Internacionais", sgsCode: 13621, 
-        currentValue: ecoData?.internationalReserves, // Value in Millions USD
+        currentValue: ecoData?.internationalReserves, 
         valuePrecision: 2,
-        displayDivisor: 1000, // Millions to Billions
+        displayDivisor: 1000, 
         displaySuffixOverride: " bi USD",
         referenceText: formatReferenceDate(ecoData?.internationalReservesReferenceDate), sourceText: "BCB-SGS 13621",
         description: "As Reservas Internacionais são os ativos em moeda estrangeira (como dólar, euro, ouro) que o Brasil possui. Servem como seguro contra crises cambiais e para intervenções no mercado de câmbio. Valor em milhões de USD (histórico) e bilhões de USD (card).",
-        isUSD: true, isBillions: true, // For chart modal tooltip and y-axis formatting, data is in millions
+        isUSD: true, isBillions: true, 
         historicalSeriesName: "Reservas (Milhões USD)", historicalYAxisLabel: "Milhões USD", isDailyData: true,
       },
       {
         title: "Reservas Internacionais - Ouro", 
         sgsCode: 3552, 
-        currentValue: ecoData?.goldReservesSGS3552MillionsUSD, // Value in Millions USD
+        currentValue: ecoData?.goldReservesSGS3552MillionsUSD, 
         valuePrecision: 2, 
-        displayDivisor: 1000, // Millions to Billions
+        displayDivisor: 1000, 
         displaySuffixOverride: " bi USD",
         referenceText: formatReferenceDate(ecoData?.goldReservesSGS3552MillionsUSDReferenceDate, 'monthYear'), 
         sourceText: "BCB-SGS 3552",
         description: "Parcela das reservas internacionais composta por ouro, incluindo depósitos de ouro. Valor em milhões de dólares americanos (histórico) e bilhões de USD (card).",
-        isUSD: true, isBillions: true, // For chart modal tooltip and y-axis formatting, data is in millions
+        isUSD: true, isBillions: true, 
         historicalSeriesName: "Ouro (Reservas Milhões USD)", 
         historicalYAxisLabel: "Milhões USD"
       },
       {
         title: "PIB", 
-        sgsCode: 'FOCUS_ONLY', // Special identifier, no direct SGS for historical line chart in same way
+        sgsCode: 'FOCUS_ONLY', 
         currentValue: getValidatedAndPotentiallyCorrectedPercentage(ecoData?.gdpProjection, "PIB", true), 
-        valueSuffix: "%", // Is % variation
+        valueSuffix: "%", 
         valuePrecision: 2,
         referenceText: formatGdpReference(ecoData?.gdpProjectionReferenceDate), 
         sourceText: "BCB-Focus (Projeção)", 
@@ -417,7 +413,7 @@ const MacroEconomicPanel: React.FC<MacroEconomicPanelProps> = ({ setActiveView }
       <Card><Card.Content className="py-20 flex justify-center items-center">
           <div className="flex flex-col items-center">
             <svg className="animate-spin h-12 w-12 text-blue-600 dark:text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-            <p className="text-center text-gray-500 dark:text-gray-400 mt-6 text-lg">Carregando painel...</p>
+            <p className="text-center text-slate-500 dark:text-slate-400 mt-6 text-lg">Carregando painel...</p>
           </div></Card.Content></Card>
     );
   }
@@ -437,13 +433,10 @@ const MacroEconomicPanel: React.FC<MacroEconomicPanelProps> = ({ setActiveView }
 
   const getCardSpecificError = (indicator: IndicatorModalData): string | null => {
     let cardError: string | null = null;
-    // 1. General fetch error check
     if (ecoData?.errors?.includes(indicator.title) || (indicator.title === "M2 (Base Monetária)" && ecoData?.errors?.includes("M2"))) {
         cardError = "Erro ao buscar";
     }
 
-
-    // 2. Dólar PTAX specific (if not covered by general error and USD rate is missing)
     if (!cardError && indicator.title === "Dólar PTAX (Venda)" && !usdRateInfo && !isLoading) {
         const ptaxErrorInGeneralList = ecoData?.errors?.some(e => e.toLowerCase().includes("dólar"));
         if (!ptaxErrorInGeneralList) {
@@ -451,7 +444,6 @@ const MacroEconomicPanel: React.FC<MacroEconomicPanelProps> = ({ setActiveView }
         }
     }
 
-    // 3. PIB specific (if projection is null/undefined and no general fetch error for PIB)
     if (!cardError && indicator.title === "PIB" && (ecoData?.gdpProjection === null || ecoData?.gdpProjection === undefined) && !isLoading && indicator.sgsCode === 'FOCUS_ONLY') {
         cardError = "Projeção Indisponível";
     }
@@ -461,13 +453,12 @@ const MacroEconomicPanel: React.FC<MacroEconomicPanelProps> = ({ setActiveView }
 
   const renderListView = () => (
     <div className="space-y-3">
-      {/* Terminal Card - Special Item */}
       <Card
-        className="cursor-pointer hover:shadow-xl transition-shadow duration-200 ease-in-out transform hover:-translate-y-0.5 bg-slate-700 dark:bg-slate-800 text-white dark:text-blue-300"
+        className="cursor-pointer hover:shadow-xl transition-shadow duration-200 ease-in-out transform hover:-translate-y-0.5 bg-slate-600 dark:bg-slate-700 text-white dark:text-blue-300"
         onClick={() => setActiveView('macroEconomicTerminal')}
         aria-label="Acessar Terminal Financeiro Interativo"
       >
-        <Card.Header className="border-b-slate-600 dark:border-b-slate-500/50 !pb-3 !pt-3">
+        <Card.Header className="border-b-slate-500 dark:border-b-slate-600/50 !pb-3 !pt-3">
           <div className="flex items-center space-x-3">
             <CommandLineIcon className="w-6 h-6 text-green-400 dark:text-green-300" />
             <Card.Title className="text-md text-white dark:text-blue-300">Terminal Financeiro Interativo</Card.Title>
@@ -475,11 +466,11 @@ const MacroEconomicPanel: React.FC<MacroEconomicPanelProps> = ({ setActiveView }
         </Card.Header>
         <Card.Content className="!pt-2 !pb-3">
           <div className="flex items-center justify-between">
-              <p className="text-xs text-slate-300 dark:text-slate-400 mb-2 flex-grow">
+              <p className="text-xs text-slate-200 dark:text-slate-300 mb-2 flex-grow">
                 Compare indicadores macroeconômicos em gráficos interativos e analise tendências históricas.
               </p>
               <span 
-                className="ml-2 inline-flex items-center bg-gray-400 dark:bg-gray-600 text-white dark:text-gray-200 text-xs font-semibold px-2.5 py-1 rounded-full flex-shrink-0"
+                className="ml-2 inline-flex items-center bg-slate-500 dark:bg-slate-600 text-white dark:text-slate-200 text-xs font-semibold px-2.5 py-1 rounded-full flex-shrink-0"
                 aria-label="Ferramenta em fase de testes"
                 title="Esta ferramenta está em fase de testes. Alguns recursos podem não funcionar como esperado."
               >
@@ -518,7 +509,7 @@ const MacroEconomicPanel: React.FC<MacroEconomicPanelProps> = ({ setActiveView }
               }
               displayValueStr = formatNumberForDisplay(numToFormat, { 
                   minimumFractionDigits: indicator.valuePrecision ?? 2, 
-                  maximumFractionDigits: indicator.valuePrecision ?? 2 // Use same for max unless specifically needed
+                  maximumFractionDigits: indicator.valuePrecision ?? 2 
               });
           } else {
               displayValueStr = String(indicator.currentValue);
@@ -529,7 +520,7 @@ const MacroEconomicPanel: React.FC<MacroEconomicPanelProps> = ({ setActiveView }
         return (
           <div
             key={indicator.title || index}
-            className="p-4 bg-white dark:bg-slate-800/80 shadow-md hover:shadow-lg rounded-lg transition-shadow duration-150 flex flex-col sm:flex-row justify-between items-start sm:items-center cursor-pointer"
+            className="p-4 bg-white dark:bg-slate-800 shadow-premium hover:shadow-premium-hover rounded-lg transition-shadow duration-150 flex flex-col sm:flex-row justify-between items-start sm:items-center cursor-pointer"
             role="button"
             tabIndex={0}
             onClick={() => handleOpenModal(indicator)}
@@ -537,18 +528,18 @@ const MacroEconomicPanel: React.FC<MacroEconomicPanelProps> = ({ setActiveView }
             aria-label={`Ver detalhes sobre ${indicator.title}`}
           >
             <div className="flex-grow mb-2 sm:mb-0">
-              <h3 className="text-md font-semibold text-gray-800 dark:text-blue-300">{indicator.title}</h3>
-              <p className={`text-xl font-bold ${cardSpecificError ? (cardSpecificError === "Erro ao buscar" ? 'text-red-500 dark:text-red-400' : 'text-orange-500 dark:text-orange-400') : 'text-gray-900 dark:text-white'}`}>
+              <h3 className="text-md font-semibold text-slate-700 dark:text-blue-300">{indicator.title}</h3>
+              <p className={`text-xl font-bold ${cardSpecificError ? (cardSpecificError === "Erro ao buscar" ? 'text-red-500 dark:text-red-400' : 'text-orange-500 dark:text-orange-400') : 'text-slate-800 dark:text-slate-100'}`}>
                 {finalPrefix}{displayValueStr}{finalSuffix}
               </p>
               {indicator.referenceText && !isLoading && !cardSpecificError && (
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5" dangerouslySetInnerHTML={{ __html: indicator.referenceText.replace("⚠️", "<span class='text-orange-500 dark:text-orange-400'>⚠️</span>") }}></p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5" dangerouslySetInnerHTML={{ __html: indicator.referenceText.replace("⚠️", "<span class='text-orange-500 dark:text-orange-400'>⚠️</span>") }}></p>
               )}
               {indicator.sourceText && !isLoading && !cardSpecificError && (
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Fonte: {indicator.sourceText}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Fonte: {indicator.sourceText}</p>
               )}
                {isLoading && indicator.currentValue === undefined && (
-                 <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Atualizando...</p>
+                 <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Atualizando...</p>
                )}
             </div>
             <Button
@@ -569,13 +560,12 @@ const MacroEconomicPanel: React.FC<MacroEconomicPanelProps> = ({ setActiveView }
 
   const renderGridView = () => (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
-      {/* Terminal Card - Special Item */}
       <Card
-        className="cursor-pointer hover:shadow-2xl transition-shadow duration-200 ease-in-out transform hover:-translate-y-1 bg-slate-700 dark:bg-slate-800 text-white dark:text-blue-300 sm:col-span-1 lg:col-span-1"
+        className="cursor-pointer hover:shadow-premium-hover transition-shadow duration-200 ease-in-out transform hover:-translate-y-1 bg-slate-600 dark:bg-slate-700 text-white dark:text-blue-300 sm:col-span-1 lg:col-span-1"
         onClick={() => setActiveView('macroEconomicTerminal')}
         aria-label="Acessar Terminal Financeiro Interativo"
       >
-        <Card.Header className="border-b-slate-600 dark:border-b-slate-500/50 !pb-3 !pt-4">
+        <Card.Header className="border-b-slate-500 dark:border-b-slate-600/50 !pb-3 !pt-4">
           <div className="flex items-center space-x-3">
             <CommandLineIcon className="w-7 h-7 text-green-400 dark:text-green-300" />
             <Card.Title className="text-md text-white dark:text-blue-300">Terminal Financeiro</Card.Title>
@@ -583,11 +573,11 @@ const MacroEconomicPanel: React.FC<MacroEconomicPanelProps> = ({ setActiveView }
         </Card.Header>
         <Card.Content className="!pt-2 !pb-4 flex flex-col justify-between h-full">
           <div className="flex items-start justify-between">
-            <p className="text-xs text-slate-300 dark:text-slate-400 mb-3 flex-grow">
+            <p className="text-xs text-slate-200 dark:text-slate-300 mb-3 flex-grow">
               Compare indicadores em gráficos interativos e analise tendências.
             </p>
              <span 
-              className="ml-2 inline-flex items-center bg-gray-400 dark:bg-gray-500 text-white dark:text-gray-100 text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0"
+              className="ml-2 inline-flex items-center bg-slate-500 dark:bg-slate-600 text-white dark:text-slate-100 text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0"
               aria-label="Ferramenta em fase de testes"
               title="Esta ferramenta está em fase de testes. Alguns recursos podem não funcionar como esperado."
             >
@@ -621,10 +611,10 @@ const MacroEconomicPanel: React.FC<MacroEconomicPanelProps> = ({ setActiveView }
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
-        <h2 className="text-xl font-semibold text-gray-800 dark:text-blue-300">Painel Macroeconômico</h2>
+        <h2 className="text-xl font-semibold text-slate-700 dark:text-blue-300">Painel Macroeconômico</h2>
         <div className="flex items-center space-x-2">
           {lastUpdated && !isLoading && (
-            <p className="text-xs text-gray-500 dark:text-gray-400 hidden md:block">Última atualização: {lastUpdated}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 hidden md:block">Última atualização: {lastUpdated}</p>
           )}
           <Button
             variant={viewMode === 'grid' ? 'primary' : 'ghost'}
@@ -649,7 +639,7 @@ const MacroEconomicPanel: React.FC<MacroEconomicPanelProps> = ({ setActiveView }
         </div>
       </div>
        {lastUpdated && !isLoading && (
-          <p className="text-xs text-gray-500 dark:text-gray-400 block md:hidden text-center sm:text-left">Última atualização: {lastUpdated}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 block md:hidden text-center sm:text-left">Última atualização: {lastUpdated}</p>
         )}
 
 
@@ -660,7 +650,7 @@ const MacroEconomicPanel: React.FC<MacroEconomicPanelProps> = ({ setActiveView }
 
       {viewMode === 'grid' ? renderGridView() : renderListView()}
       
-      <p className="text-xs text-gray-500 dark:text-gray-400 text-center pt-2">
+      <p className="text-xs text-slate-500 dark:text-slate-400 text-center pt-2">
         Clique nos cards/itens para mais detalhes. Dados das APIs do BCB, podem ter defasagens. Consulte fontes oficiais. Fins ilustrativos.
       </p>
       {isModalOpen && selectedIndicatorForModal && (

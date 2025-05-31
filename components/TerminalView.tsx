@@ -3,17 +3,14 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { Card } from './ui/Card';
 import TerminalChartControls from './TerminalChartControls';
 import TerminalChartDisplay from './TerminalChartDisplay';
-// TerminalChatInterface is removed
 import { 
   HistoricalDataPoint, 
   DateRangePreset, 
   AvailableIndicatorForTerminal, 
   MergedTerminalChartDataPoint,
-  // ChatMessage type is removed
 } from '../types';
-import { AVAILABLE_TERMINAL_INDICATORS } from '../constants'; // MAX_SELECTED_INDICATORS_FOR_CHAT removed
+import { AVAILABLE_TERMINAL_INDICATORS } from '../constants'; 
 import { fetchHistoricalSgsData, fetchHistoricalPtAXData } from '../utils/economicIndicatorsAPI';
-// GoogleGenAI, Chat imports are removed
 
 const WarningIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
@@ -34,7 +31,6 @@ const TerminalView: React.FC = () => {
   const [isLoadingChart, setIsLoadingChart] = useState<boolean>(false);
   const [chartError, setChartError] = useState<string | null>(null);
 
-  // Chat state and refs are removed
 
   const getDatesFromPreset = useCallback((preset: DateRangePreset): { start: string, end: string } => {
     const endDate = new Date();
@@ -50,7 +46,6 @@ const TerminalView: React.FC = () => {
     return { start: formatDate(startDate), end: formatDate(endDate) };
   }, []);
 
-  // Gemini Chat initialization useEffect is removed
 
   const processAndMergeData = useCallback((
     fetchedSeriesData: Map<string, HistoricalDataPoint[]>,
@@ -103,7 +98,7 @@ const TerminalView: React.FC = () => {
     return mergedData;
   }, []);
 
-  const handleGenerateChart = useCallback(async () => { // fromChatUpdate parameter removed
+  const handleGenerateChart = useCallback(async () => { 
     if (selectedIndicators.length === 0) {
       setChartError("Selecione pelo menos um indicador.");
       setChartData([]);
@@ -112,7 +107,6 @@ const TerminalView: React.FC = () => {
     }
     setIsLoadingChart(true);
     setChartError(null);
-    // isChatInitiatedUpdate.current = fromChatUpdate; // Removed
 
     let startDateStr: string, endDateStr: string;
     if (dateRangePreset) {
@@ -182,7 +176,7 @@ const TerminalView: React.FC = () => {
         const processed = processAndMergeData(fetchedSeriesData, currentActiveIndicators, normalizeData);
         setChartData(processed);
         setActiveFetchedIndicators(currentActiveIndicators);
-        if (processed.length === 0 && !chartError) { // Ensure not to overwrite a fetch error
+        if (processed.length === 0 && !chartError) { 
             setChartError("Nenhum dado encontrado para os indicadores e período selecionados após processamento.");
         }
       } else if (!fetchErrorOccurred) { 
@@ -198,12 +192,10 @@ const TerminalView: React.FC = () => {
       setActiveFetchedIndicators([]);
     } finally {
       setIsLoadingChart(false);
-      // setTimeout(() => { isChatInitiatedUpdate.current = false; }, 0); // Removed
     }
   }, [selectedIndicators, dateRangePreset, customStartDate, customEndDate, normalizeData, getDatesFromPreset, processAndMergeData]);
 
 
-  // Effect to automatically set custom dates when a preset is chosen
   useEffect(() => {
     if (dateRangePreset) {
       const { start, end } = getDatesFromPreset(dateRangePreset);
@@ -212,7 +204,6 @@ const TerminalView: React.FC = () => {
     }
   }, [dateRangePreset, getDatesFromPreset]);
 
-  // Effect to regenerate chart if controls are changed manually
   useEffect(() => {
     if (!isLoadingChart && selectedIndicators.length > 0) {
         let datesAreValid = false;
@@ -230,9 +221,7 @@ const TerminalView: React.FC = () => {
         }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedIndicators, dateRangePreset, customStartDate, customEndDate, normalizeData]); // handleGenerateChart is memoized, dependencies are stable
-
-  // parseGeminiResponseAndUpdateControls and handleSendChatMessage are removed
+  }, [selectedIndicators, dateRangePreset, customStartDate, customEndDate, normalizeData]); 
 
   return (
     <div className="space-y-6">
@@ -245,7 +234,6 @@ const TerminalView: React.FC = () => {
             availableIndicators={AVAILABLE_TERMINAL_INDICATORS}
             selectedIndicators={selectedIndicators}
             onSelectedIndicatorsChange={setSelectedIndicators}
-            // maxSelectedIndicators is now defaulted in TerminalChartControls
             dateRangePreset={dateRangePreset}
             onDateRangePresetChange={setDateRangePreset}
             customStartDate={customStartDate}
@@ -272,7 +260,7 @@ const TerminalView: React.FC = () => {
         <Card.Header className="flex justify-between items-center">
           <Card.Title>Visualização do Gráfico</Card.Title>
           <span 
-            className="inline-flex items-center bg-gray-400 dark:bg-gray-600 text-white dark:text-gray-200 text-xs font-medium px-2.5 py-1 rounded-full"
+            className="inline-flex items-center bg-slate-400 dark:bg-slate-600 text-white dark:text-slate-200 text-xs font-medium px-2.5 py-1 rounded-full"
             aria-label="Ferramenta em fase de testes"
             title="Esta ferramenta está em fase de testes. Alguns recursos podem não funcionar como esperado."
           >
@@ -287,7 +275,7 @@ const TerminalView: React.FC = () => {
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
-              <p className="ml-3 text-gray-500 dark:text-gray-400">Gerando gráfico...</p>
+              <p className="ml-3 text-slate-500 dark:text-slate-400">Gerando gráfico...</p>
             </div>
           )}
           {!isLoadingChart && chartData.length > 0 && activeFetchedIndicators.length > 0 ? (
@@ -297,19 +285,17 @@ const TerminalView: React.FC = () => {
               yAxisLabel={normalizeData ? "Valor Normalizado (Início = 100)" : "Valor"}
             />
           ) : !isLoadingChart && !chartError && selectedIndicators.length > 0 && (
-             <p className="text-center text-gray-500 dark:text-gray-400 py-10">
+             <p className="text-center text-slate-500 dark:text-slate-400 py-10">
               Nenhum dado encontrado para os indicadores e período selecionados, ou clique em "Gerar Gráfico".
              </p>
           )}
           {!isLoadingChart && !chartError && selectedIndicators.length === 0 && (
-             <p className="text-center text-gray-500 dark:text-gray-400 py-10">
+             <p className="text-center text-slate-500 dark:text-slate-400 py-10">
               Selecione indicadores e um período, depois clique em "Gerar Gráfico".
             </p>
           )}
         </Card.Content>
       </Card>
-
-      {/* Chat Card is removed */}
     </div>
   );
 };

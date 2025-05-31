@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { ScenarioData, InputFormData, ProjectionPoint, RetirementAnalysisResults } from '../types';
 import LineChartComponent from './LineChartComponent';
@@ -9,7 +8,7 @@ import Button from './ui/Button';
 import { formatCurrency, formatNumber } from '../utils/formatters';
 import { DEFAULT_SAFE_WITHDRAWAL_RATE } from '../constants';
 import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import 'jspdf-autotable'; // Import for its side-effect of patching jsPDF
 
 
 interface ResultsDisplayProps {
@@ -28,7 +27,7 @@ const calculateRetirementAnalysis = (
     return null;
   }
 
-  const retirementYearData = yearlyProjection.find(p => p.age === inputValues.targetAge! -1 ); // Data at start of targetAge, or end of (targetAge-1)
+  const retirementYearData = yearlyProjection.find(p => p.age === inputValues.targetAge! -1 ); 
   
   if (!retirementYearData) {
      const lastPoint = yearlyProjection[yearlyProjection.length -1];
@@ -177,7 +176,7 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ scenarioData, inputValu
         6: { cellWidth: 30 },
     };
     
-    autoTable(doc, {
+    (doc as any).autoTable({ // Changed from autoTable(doc, { ... })
         startY: finalY,
         head: [['Ano', 'Saldo Inicial', 'Aportes Anuais', 'Juros Anuais', 'Saldo Final', 'Total Aportado', 'Total Juros']],
         body: scenarioData.data.map(row => [
@@ -194,7 +193,7 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ scenarioData, inputValu
         bodyStyles: { fontSize: 8 },
         alternateRowStyles: { fillColor: [245, 245, 245] },
         columnStyles: tableColumnStyles,
-        didDrawPage: (data) => {
+        didDrawPage: (data: any) => { // Added type for data if available, otherwise any
             finalY = data.cursor?.y || finalY;
         }
     });
@@ -246,7 +245,6 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ scenarioData, inputValu
 
   return (
     <>
-      {/* Summary Card */}
       {lastProjectionPoint && (
         <Card className="mb-6 sm:mb-8">
           <Card.Header>
@@ -257,52 +255,52 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ scenarioData, inputValu
           </Card.Header>
           <Card.Content className="space-y-4">
             <div className="text-center">
-              <span className="block text-sm text-gray-600 dark:text-gray-400">Valor Final Acumulado</span>
+              <span className="block text-sm text-slate-600 dark:text-slate-400">Valor Final Acumulado</span>
               <span className="block text-3xl sm:text-4xl font-bold text-green-600 dark:text-green-400">
                 {formatCurrency(lastProjectionPoint.finalBalance)}
               </span>
             </div>
 
-            <hr className="my-3 border-gray-200 dark:border-slate-700/60" />
+            <hr className="my-3 border-slate-200 dark:border-slate-700/60" />
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm">
               <div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600 dark:text-gray-400">Total de Juros Ganhos:</span>
+                  <span className="text-slate-600 dark:text-slate-400">Total de Juros Ganhos:</span>
                   <span className="font-medium text-green-600 dark:text-green-500">
                     {formatCurrency(lastProjectionPoint.cumulativeInterest)}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600 dark:text-gray-400">Rentabilidade Total:</span>
-                  <span className="font-medium text-gray-800 dark:text-gray-200">
+                  <span className="text-slate-600 dark:text-slate-400">Rentabilidade Total:</span>
+                  <span className="font-medium text-slate-800 dark:text-slate-200">
                     {formatNumber(totalProfitability, 2)}%
                   </span>
                 </div>
               </div>
               <div>
                  <div className="flex justify-between">
-                  <span className="text-gray-600 dark:text-gray-400">Total Investido (Geral):</span>
-                  <span className="font-medium text-gray-800 dark:text-gray-200">
+                  <span className="text-slate-600 dark:text-slate-400">Total Investido (Geral):</span>
+                  <span className="font-medium text-slate-800 dark:text-slate-200">
                     {formatCurrency(lastProjectionPoint.cumulativeContributions)}
                   </span>
                 </div>
                  <div className="flex justify-between pl-4 text-xs">
-                  <span className="text-gray-500 dark:text-gray-500">&bull; Valor Inicial:</span>
-                  <span className="font-normal text-gray-700 dark:text-gray-300">
+                  <span className="text-slate-500 dark:text-slate-500">&bull; Valor Inicial:</span>
+                  <span className="font-normal text-slate-700 dark:text-slate-300">
                     {formatCurrency(inputValues.initialInvestment)}
                   </span>
                 </div>
                 <div className="flex justify-between pl-4 text-xs">
-                  <span className="text-gray-500 dark:text-gray-500">&bull; Total Aportes Mensais Regulares:</span>
-                  <span className="font-normal text-gray-700 dark:text-gray-300">
+                  <span className="text-slate-500 dark:text-slate-500">&bull; Total Aportes Mensais Regulares:</span>
+                  <span className="font-normal text-slate-700 dark:text-slate-300">
                     {formatCurrency(totalPeriodicContributions)}
                   </span>
                 </div>
                  {totalSpecificContributionsAmount > 0 && (
                     <div className="flex justify-between pl-4 text-xs">
-                        <span className="text-gray-500 dark:text-gray-500">&bull; Total Aportes Específicos:</span>
-                        <span className="font-normal text-gray-700 dark:text-gray-300">
+                        <span className="text-slate-500 dark:text-slate-500">&bull; Total Aportes Específicos:</span>
+                        <span className="font-normal text-slate-700 dark:text-slate-300">
                         {formatCurrency(totalSpecificContributionsAmount)}
                         </span>
                     </div>
@@ -313,14 +311,13 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ scenarioData, inputValu
         </Card>
       )}
 
-      {/* Retirement Analysis Card */}
       {retirementAnalysisResults && (
         <Card className="mb-6 sm:mb-8">
           <Card.Header>
             <Card.Title className="text-center">Análise de Aposentadoria (Idade Alvo: {retirementAnalysisResults.targetAge})</Card.Title>
           </Card.Header>
           <Card.Content className="space-y-3 text-sm">
-            <div className={`p-3 rounded-md text-center ${retirementAnalysisResults.canMeetGoal ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30'}`}>
+            <div className={`p-3 rounded-md text-center ${retirementAnalysisResults.canMeetGoal ? 'bg-green-100 dark:bg-green-800/30' : 'bg-red-100 dark:bg-red-800/30'}`}>
               <p className={`font-semibold ${retirementAnalysisResults.canMeetGoal ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'}`}>
                 {retirementAnalysisResults.canMeetGoal 
                   ? `🎉 Parabéns! Sua projeção atinge o capital necessário para a renda desejada.`
@@ -329,94 +326,60 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ scenarioData, inputValu
               </p>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-600 dark:text-gray-400">Patrimônio Projetado aos {retirementAnalysisResults.targetAge} anos:</span>
-              <span className="font-medium text-gray-800 dark:text-gray-200">{formatCurrency(retirementAnalysisResults.projectedCapitalAtRetirement)}</span>
+              <span className="text-slate-600 dark:text-slate-400">Patrimônio Projetado aos {retirementAnalysisResults.targetAge} anos:</span>
+              <span className="font-medium text-slate-800 dark:text-slate-200">{formatCurrency(retirementAnalysisResults.projectedCapitalAtRetirement)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-600 dark:text-gray-400">Renda Mensal Desejada (corrigida):</span>
-              <span className="font-medium text-gray-800 dark:text-gray-200">{formatCurrency(retirementAnalysisResults.finalDesiredMonthlyIncome)}</span>
+              <span className="text-slate-600 dark:text-slate-400">Renda Mensal Desejada (corrigida):</span>
+              <span className="font-medium text-slate-800 dark:text-slate-200">{formatCurrency(retirementAnalysisResults.finalDesiredMonthlyIncome)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-600 dark:text-gray-400">Patrimônio Necessário para Renda Desejada (SWR {formatNumber(retirementAnalysisResults.swrUsed * 100,0)}%):</span>
-              <span className="font-medium text-gray-800 dark:text-gray-200">{formatCurrency(retirementAnalysisResults.capitalNeededForDesiredIncome)}</span>
+              <span className="text-slate-600 dark:text-slate-400">Capital Necessário (SWR {formatNumber(DEFAULT_SAFE_WITHDRAWAL_RATE * 100, 1)}%):</span>
+              <span className="font-medium text-slate-800 dark:text-slate-200">{formatCurrency(retirementAnalysisResults.capitalNeededForDesiredIncome)}</span>
             </div>
-            {!retirementAnalysisResults.canMeetGoal && retirementAnalysisResults.achievableMonthlyIncomeWithProjectedCapital !== undefined && (
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-400">Renda Máxima Atingível com Patrimônio Projetado:</span>
-                <span className="font-medium text-orange-600 dark:text-orange-500">{formatCurrency(retirementAnalysisResults.achievableMonthlyIncomeWithProjectedCapital)}</span>
-              </div>
+             {!retirementAnalysisResults.canMeetGoal && retirementAnalysisResults.achievableMonthlyIncomeWithProjectedCapital !== undefined && (
+                <div className="flex justify-between">
+                    <span className="text-slate-600 dark:text-slate-400">Renda Mensal Atingível com o Projetado:</span>
+                    <span className="font-medium text-orange-600 dark:text-orange-400">{formatCurrency(retirementAnalysisResults.achievableMonthlyIncomeWithProjectedCapital)}</span>
+                </div>
             )}
-            <p className="text-xs text-gray-500 dark:text-gray-400 text-center pt-2 border-t border-gray-200 dark:border-slate-700/60">
-              {inputValues.adjustContributionsForInflation && inputValues.expectedInflationRate && 
-                `Renda mensal desejada e aportes foram corrigidos pela inflação de ${formatNumber(inputValues.expectedInflationRate,2)}% a.a. `
-              }
-              A Taxa de Saque Segura (SWR) de {formatNumber(retirementAnalysisResults.swrUsed * 100,0)}% a.a. é utilizada para estimar o capital necessário.
-              Historicamente, essa abordagem visa permitir que o patrimônio sustente retiradas anuais (corrigidas pela inflação) por um longo período (ex: 30+ anos),
-              sendo por isso associada a uma renda "vitalícia" no planejamento de aposentadoria.
+            <p className="text-xs text-slate-500 dark:text-slate-400 text-center pt-2">
+              SWR (Safe Withdrawal Rate) ou Taxa Segura de Saque de {formatNumber(DEFAULT_SAFE_WITHDRAWAL_RATE * 100, 1)}% a.a. utilizada para estimar o capital necessário.
             </p>
           </Card.Content>
         </Card>
       )}
 
 
-      {/* Existing Results Card (Chart and Tables) */}
       <Card>
-        <Card.Header>
-          <Card.Title>Resultados da Projeção Futura: {scenarioData.label}</Card.Title>
+        <Card.Header className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 sm:gap-4">
+          <Card.Title>{scenarioData.label}</Card.Title>
+          <div className="flex items-center space-x-2">
+            <Button onClick={() => setProjectionView('yearly')} variant={projectionView === 'yearly' ? 'primary' : 'secondary'} size="sm">Anual</Button>
+            <Button onClick={() => setProjectionView('monthly')} variant={projectionView === 'monthly' ? 'primary' : 'secondary'} size="sm">Mensal</Button>
+            <Button onClick={handleExportPDF} variant="secondary" size="sm" leftIcon={
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+              </svg>
+            }>Exportar PDF</Button>
+          </div>
         </Card.Header>
-        <Card.Content className="space-y-8">
-          <div>
-            <h3 className="text-lg font-semibold mb-4 text-gray-800 dark:text-blue-400">Evolução Patrimonial Projetada</h3>
-            {scenarioData.data.length > 1 ? (
-               <LineChartComponent 
-                    data={scenarioData.data} 
-                    specificContributions={inputValues.enableAdvancedSimulation && inputValues.advancedSimModeSpecificContributions ? inputValues.specificContributions : undefined}
-                    currentAge={inputValues.enableAdvancedSimulation && inputValues.advancedSimModeRetirement ? inputValues.currentAge : undefined}
-                />
-            ) : (
-              <p className="text-center text-gray-500 dark:text-gray-400 py-5">Dados insuficientes para gerar o gráfico da projeção (mínimo 2 anos).</p>
-            )}
-          </div>
-          <div>
-            <div className="flex flex-wrap justify-between items-center mb-4 gap-2">
-                <h3 className="text-lg font-semibold text-gray-800 dark:text-blue-400">Detalhes da Projeção</h3>
-                <div className="flex space-x-2">
-                    <Button 
-                        variant={projectionView === 'yearly' ? 'primary' : 'secondary'} 
-                        size="sm" 
-                        onClick={() => setProjectionView('yearly')}
-                    >
-                        Visão Anual
-                    </Button>
-                    <Button 
-                        variant={projectionView === 'monthly' ? 'primary' : 'secondary'} 
-                        size="sm" 
-                        onClick={() => setProjectionView('monthly')}
-                        disabled={!scenarioData.monthlyData || scenarioData.monthlyData.length === 0}
-                    >
-                        Visão Mensal
-                    </Button>
-                     <Button 
-                        variant="secondary" 
-                        size="sm" 
-                        onClick={handleExportPDF}
-                        leftIcon={<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>}
-                    >
-                        Exportar PDF
-                    </Button>
-                </div>
-            </div>
-            {projectionView === 'yearly' && scenarioData.data.length > 0 && (
-              <DataTable data={scenarioData.data} inputValues={inputValues} />
-            )}
-            {projectionView === 'monthly' && scenarioData.monthlyData && scenarioData.monthlyData.length > 0 && (
-              <MonthlyDataTable data={scenarioData.monthlyData} inputValues={inputValues} />
-            )}
-             {((projectionView === 'yearly' && scenarioData.data.length === 0) ||
-               (projectionView === 'monthly' && (!scenarioData.monthlyData || scenarioData.monthlyData.length === 0))) && (
-               <p className="text-center text-gray-500 dark:text-gray-400 py-5">Nenhum dado para exibir na tabela de projeção {projectionView === 'monthly' ? 'mensal' : 'anual'}.</p>
-            )}
-          </div>
+        <Card.Content className="space-y-6">
+          {projectionView === 'yearly' && scenarioData.data && (
+            <>
+              <LineChartComponent 
+                data={scenarioData.data} 
+                specificContributions={inputValues.specificContributions}
+                currentAge={ (inputValues.enableAdvancedSimulation && inputValues.advancedSimModeRetirement && inputValues.currentAge) ? inputValues.currentAge : undefined }
+              />
+              <DataTable data={scenarioData.data} inputValues={inputValues}/>
+            </>
+          )}
+          {projectionView === 'monthly' && scenarioData.monthlyData && (
+            <MonthlyDataTable data={scenarioData.monthlyData} inputValues={inputValues}/>
+          )}
+           {!scenarioData.data && projectionView === 'yearly' && <p>Nenhum dado anual para exibir.</p>}
+           {!scenarioData.monthlyData && projectionView === 'monthly' && <p>Nenhum dado mensal para exibir.</p>}
         </Card.Content>
       </Card>
     </>

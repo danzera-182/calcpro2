@@ -24,7 +24,7 @@ const ThemeToggle: React.FC = () => {
       onClick={toggleTheme}
       variant="ghost"
       aria-label={theme === 'light' ? 'Ativar modo escuro' : 'Ativar modo claro'}
-      className="p-2 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/70"
+      className="p-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-200/70 dark:hover:bg-slate-700/70"
     >
       {theme === 'light' ? (
         <MoonIcon className="w-5 h-5 sm:w-6 sm:h-6" />
