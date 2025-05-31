@@ -1,5 +1,5 @@
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { NewsItem, StorySource } from '../types';
 import Button from './ui/Button'; // Assuming Button component is in ui folder
 import { formatCurrency, formatNumberForDisplay } from '../utils/formatters'; // For date formatting consistency
@@ -42,6 +42,10 @@ const StoryViewer: React.FC<StoryViewerProps> = ({
   onNext,
   onPrev,
 }) => {
+  const SWIPE_THRESHOLD = 50; // Minimum pixels for a swipe
+  const touchStartXRef = useRef<number | null>(null);
+  const touchEndXRef = useRef<number | null>(null);
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
@@ -64,6 +68,33 @@ const StoryViewer: React.FC<StoryViewerProps> = ({
       return dateString; // Fallback to original string
     }
   };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartXRef.current = e.touches[0].clientX;
+    touchEndXRef.current = e.touches[0].clientX; 
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (touchStartXRef.current === null) return;
+    touchEndXRef.current = e.touches[0].clientX;
+  };
+
+  const handleTouchEnd = () => {
+    if (touchStartXRef.current === null || touchEndXRef.current === null) return;
+
+    const deltaX = touchEndXRef.current - touchStartXRef.current;
+
+    if (Math.abs(deltaX) > SWIPE_THRESHOLD) {
+      if (deltaX > 0) { // Swipe Right (previous)
+        onPrev();
+      } else { // Swipe Left (next)
+        onNext();
+      }
+    }
+    touchStartXRef.current = null;
+    touchEndXRef.current = null;
+  };
+
 
   return (
     <div 
@@ -103,7 +134,12 @@ const StoryViewer: React.FC<StoryViewerProps> = ({
       </div>
 
       {/* Content Area: Centered, aspect ratio for story */}
-      <div className="relative w-full max-w-md aspect-[9/16] bg-slate-100 dark:bg-slate-800 rounded-lg overflow-hidden shadow-2xl flex flex-col">
+      <div 
+        className="relative w-full max-w-md aspect-[9/16] bg-slate-100 dark:bg-slate-800 rounded-lg overflow-hidden shadow-2xl flex flex-col"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
         {/* Image (if available) */}
         {currentItem.imageUrl && (
           <div className="w-full h-2/5 sm:h-1/3 flex-shrink-0">

@@ -1,24 +1,24 @@
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { InputFormData, ScenarioData, AppView, BtcPriceInfo, UsdtPriceInfo } from './types.ts';
-import { DEFAULT_INPUT_VALUES } from './constants.ts';
-import { calculateProjection } from './utils/calculations.ts';
-import InputForm from './components/InputForm.tsx';
-import ResultsDisplay from './components/ResultsDisplay.tsx'; 
-import ThemeToggle from './components/ThemeToggle.tsx';
-import { Card } from './components/ui/Card.tsx';
-import Button from './components/ui/Button.tsx';
-import FixedIncomeComparator from './components/FixedIncomeComparator.tsx';
-import ComprehensiveComparator from './components/ComprehensiveComparator.tsx'; 
-import BitcoinRateDisplay from './components/BitcoinRateDisplay.tsx'; 
-import UsdtRateDisplay from './components/UsdtRateDisplay.tsx';
-import MacroEconomicPanel from './components/MacroEconomicPanel.tsx'; 
-import TerminalView from './components/TerminalView.tsx';
-import BitcoinDetailedChart from './components/BitcoinDetailedChart.tsx';
-import UsdtDetailedChart from './components/UsdtDetailedChart.tsx';
-import RSSStoriesFeed from './components/RSSStoriesFeed.tsx'; // Import the new component
-import { fetchLatestBitcoinPrice, fetchLatestUsdtPrice } from './utils/economicIndicatorsAPI.ts';
-import { formatCurrency, formatNumberForDisplay, formatNumber } from './utils/formatters.ts';
+import { InputFormData, ScenarioData, AppView, BtcPriceInfo, UsdtPriceInfo } from './types';
+import { DEFAULT_INPUT_VALUES } from './constants';
+import { calculateProjection } from './utils/calculations';
+import InputForm from './components/InputForm';
+import ResultsDisplay from './components/ResultsDisplay'; 
+import ThemeToggle from './components/ThemeToggle';
+import { Card } from './components/ui/Card';
+import Button from './components/ui/Button';
+import FixedIncomeComparator from './components/FixedIncomeComparator';
+import ComprehensiveComparator from './components/ComprehensiveComparator'; 
+import BitcoinRateDisplay from './components/BitcoinRateDisplay'; 
+import UsdtRateDisplay from './components/UsdtRateDisplay';
+import MacroEconomicPanel from './components/MacroEconomicPanel'; 
+import TerminalView from './components/TerminalView';
+import BitcoinDetailedChart from './components/BitcoinDetailedChart';
+import UsdtDetailedChart from './components/UsdtDetailedChart';
+import RSSStoriesFeed from './components/RSSStoriesFeed'; // Import the new component
+import { fetchLatestBitcoinPrice, fetchLatestUsdtPrice } from './utils/economicIndicatorsAPI';
+import { formatCurrency, formatNumberForDisplay, formatNumber } from './utils/formatters';
 
 const viewToPathMap: Record<AppView, string> = {
   selector: '/',
@@ -234,7 +234,7 @@ const App: React.FC = () => {
   }, [activeView, bitcoinPriceInfo, isLoadingBitcoinPrice, bitcoinPriceError, usdtPriceInfo, isLoadingUsdtPrice, usdtPriceError]);
 
 
-  const getSubtitle = () => { 
+  const getSubtitle = (): string | null => { 
     switch (activeView) {
       case 'compoundInterest':
         return "Simule o futuro dos seus investimentos com projeções detalhadas e simulações avançadas.";
@@ -254,7 +254,7 @@ const App: React.FC = () => {
         return "Acompanhe notícias do mercado em formato de stories.";
       case 'selector':
       default:
-        return "Suas ferramentas financeiras em um só lugar. Escolha uma opção abaixo para começar.";
+        return null; // Não mostrar subtítulo na tela de seleção ou em views desconhecidas
     }
   };
   
@@ -708,6 +708,8 @@ const App: React.FC = () => {
         return null;
     }
   };
+  
+  const pageSubtitle = getSubtitle();
 
   return (
     <div className="min-h-screen">
@@ -745,9 +747,11 @@ const App: React.FC = () => {
               </svg>
             </h1>
           </div>
-           <div className="absolute left-4 sm:left-6 top-1/2 -translate-y-1/2 text-xs sm:text-sm text-slate-600 dark:text-slate-400 font-medium hidden md:block">
-            {getSubtitle()}
-          </div>
+           {pageSubtitle && (
+            <div className="absolute left-4 sm:left-6 top-1/2 -translate-y-1/2 text-xs sm:text-sm text-slate-600 dark:text-slate-400 font-medium hidden md:block">
+                {pageSubtitle}
+            </div>
+           )}
           <div className="absolute right-4 sm:right-6 top-1/2 -translate-y-1/2">
             <ThemeToggle />
           </div>
