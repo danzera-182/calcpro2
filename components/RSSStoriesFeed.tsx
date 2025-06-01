@@ -97,8 +97,9 @@ const RSSStoriesFeed: React.FC<RSSStoriesFeedProps> = ({ onSelectArticleForSumma
       const title = itemNode.querySelector("title")?.textContent || "Sem título";
       const link = itemNode.querySelector("link")?.textContent || "";
       const pubDate = itemNode.querySelector("pubDate")?.textContent;
-      let description = itemNode.querySelector("description")?.textContent || "";
-      description = description.replace(/<[^>]+>/g, '').substring(0, 200) + (description.length > 200 ? "..." : "");
+      // Store raw HTML of description before cleaning for image extraction
+      const rawDescriptionHTML = itemNode.querySelector("description")?.textContent || "";
+      let description = rawDescriptionHTML.replace(/<[^>]+>/g, '').substring(0, 200) + (rawDescriptionHTML.length > 200 ? "..." : "");
       
       let imageUrl: string | undefined;
       const mediaContent = itemNode.querySelector("media\\:content, content"); // Added 'content' for some feeds
@@ -119,8 +120,8 @@ const RSSStoriesFeed: React.FC<RSSStoriesFeedProps> = ({ onSelectArticleForSumma
         }
       }
        // Try to get image from CDATA within description if specific tags fail (common in Folha)
-      if (!imageUrl && description) {
-        const imgMatch = description.match(/<img[^>]+src="([^">]+)"/);
+      if (!imageUrl && rawDescriptionHTML) {
+        const imgMatch = rawDescriptionHTML.match(/<img[^>]+src="([^">]+)"/);
         if (imgMatch && imgMatch[1]) {
             imageUrl = imgMatch[1];
         }

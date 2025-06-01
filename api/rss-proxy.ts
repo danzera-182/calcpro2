@@ -1,4 +1,3 @@
-
 // File: api/rss-proxy.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
@@ -10,8 +9,8 @@ const ALLOWED_RSS_DOMAINS = [
   'exame.com',
   'www.estadao.com.br',
   'br.cointelegraph.com',
-  'www.suno.com.br', // Added Suno
-  'ir.thomsonreuters.com', // Added Thomson Reuters
+  'www.suno.com.br', 
+  'ir.thomsonreuters.com', 
 ];
 
 export default async function handler(
@@ -56,8 +55,8 @@ export default async function handler(
   try {
     const fetchResponse = await fetch(targetUrl, {
       headers: {
-        'User-Agent': 'TheWealthLab-RSS-Proxy/1.0 (+https://calcpro2.vercel.app)',
-        'Accept': 'application/rss+xml, application/xml, text/xml',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Accept': 'application/rss+xml, application/xml, text/xml', // Specific Accept header
       },
       redirect: 'follow', 
     });
