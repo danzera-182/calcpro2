@@ -1,10 +1,10 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { NewsItem, StorySource, ArticleForSummary } from '../types'; // Added ArticleForSummary
+import { NewsItem, StorySource, ArticleForSummary } from '../types'; 
 import { Card } from './ui/Card';
 import StoryIcon from './ui/StoryIcon';
 import StoryViewer from './StoryViewer';
-import Button from './ui/Button'; // Added Button for "Resumir com IA"
+import Button from './ui/Button'; 
 
 const INITIAL_SOURCES: Omit<StorySource, 'items' | 'lastFetched'>[] = [
   {
@@ -27,11 +27,32 @@ const INITIAL_SOURCES: Omit<StorySource, 'items' | 'lastFetched'>[] = [
     rssUrl: 'https://br.cointelegraph.com/rss',
     iconUrl: "https://br.cointelegraph.com/icons/icon-96x96.png", 
     color: "#FDB913", 
+  },
+  {
+    id: "suno-noticias",
+    name: "Suno Notícias",
+    rssUrl: 'https://www.suno.com.br/noticias/feed/',
+    iconUrl: "https://www.suno.com.br/wp-content/uploads/2021/03/cropped-favicon-suno-32x32.png",
+    color: "#0056B3", // Suno Blue
+  },
+  {
+    id: "folha-mercado",
+    name: "Folha Mercado",
+    rssUrl: 'https://feeds.folha.uol.com.br/mercado/rss091.xml',
+    iconUrl: "https://static.folha.uol.com.br/site/images/favicon/32x32.png",
+    color: "#000000", // Folha Black
+  },
+  {
+    id: "reuters-news",
+    name: "Reuters News (BR)",
+    rssUrl: 'https://ir.thomsonreuters.com/rss/news-releases.xml?items=15', // This is general TR news, hopefully localized or relevant
+    iconUrl: "https://ir.thomsonreuters.com/themes/TR/favicon.ico",
+    color: "#FF8000", // Reuters Orange
   }
 ];
 
 const PROXY_BASE_URL = '/api/rss-proxy?url=';
-const MAX_ITEMS_FOR_ANALYSIS = 6; // Number of items to show in "Principais Notícias"
+const MAX_ITEMS_FOR_ANALYSIS = 6;
 
 interface RSSStoriesFeedProps {
   onSelectArticleForSummary: (article: ArticleForSummary) => void;
@@ -43,9 +64,16 @@ const WarningIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   </svg>
 );
 
+const RefreshCwIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+  </svg>
+);
+
 const RSSStoriesFeed: React.FC<RSSStoriesFeedProps> = ({ onSelectArticleForSummary }) => {
   const [storySources, setStorySources] = useState<StorySource[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   
   const [isViewerOpen, setIsViewerOpen] = useState<boolean>(false);
@@ -62,7 +90,6 @@ const RSSStoriesFeed: React.FC<RSSStoriesFeedProps> = ({ onSelectArticleForSumma
     const errorNode = xmlDoc.querySelector("parsererror");
     if (errorNode) {
         console.error(`Error parsing XML for ${sourceName}:`, errorNode.textContent);
-        // Don't set global error here, let fetchAllFeeds aggregate it.
         return [];
     }
 
@@ -74,10 +101,12 @@ const RSSStoriesFeed: React.FC<RSSStoriesFeedProps> = ({ onSelectArticleForSumma
       description = description.replace(/<[^>]+>/g, '').substring(0, 200) + (description.length > 200 ? "..." : "");
       
       let imageUrl: string | undefined;
-      const mediaContent = itemNode.querySelector("media\\:content, content");
+      const mediaContent = itemNode.querySelector("media\\:content, content"); // Added 'content' for some feeds
       if (mediaContent && mediaContent.getAttribute("url")) {
           imageUrl = mediaContent.getAttribute("url") || undefined;
+          // Basic check if media is image, some feeds don't specify medium="image" but type="image/jpeg"
           if (!(mediaContent.getAttribute("medium") === "image" || mediaContent.getAttribute("type")?.startsWith("image/"))) {
+            // Fallback: check extension if type/medium not explicit for image
             if (!imageUrl?.match(/\.(jpeg|jpg|gif|png)$/i)) {
               imageUrl = undefined; 
             }
@@ -89,6 +118,14 @@ const RSSStoriesFeed: React.FC<RSSStoriesFeedProps> = ({ onSelectArticleForSumma
             imageUrl = enclosure.getAttribute("url") || undefined;
         }
       }
+       // Try to get image from CDATA within description if specific tags fail (common in Folha)
+      if (!imageUrl && description) {
+        const imgMatch = description.match(/<img[^>]+src="([^">]+)"/);
+        if (imgMatch && imgMatch[1]) {
+            imageUrl = imgMatch[1];
+        }
+      }
+
 
       itemsList.push({
         id: link || title + (pubDate || Math.random().toString()),
@@ -103,10 +140,12 @@ const RSSStoriesFeed: React.FC<RSSStoriesFeedProps> = ({ onSelectArticleForSumma
     return itemsList;
   };
 
-  const fetchAllFeeds = useCallback(async () => {
-    setIsLoading(true);
+  const fetchAllFeeds = useCallback(async (isManualRefresh = false) => {
+    if (!isManualRefresh) setIsLoading(true);
+    else setIsRefreshing(true);
     setError(null);
-    setAnalysisNewsItems([]);
+    if (!isManualRefresh) setAnalysisNewsItems([]); // Clear old items only on initial load
+    
     let allFetchedSources: StorySource[] = [];
     let aggregatedErrorMessages = "";
 
@@ -128,7 +167,7 @@ const RSSStoriesFeed: React.FC<RSSStoriesFeedProps> = ({ onSelectArticleForSumma
             items: parsedItems,
             lastFetched: new Date(),
           });
-        } else if (!xmlText.trim().startsWith('<')) { // Check if non-XML was returned, parser might not throw for this
+        } else if (!xmlText.trim().startsWith('<')) { 
             aggregatedErrorMessages += `Feed de ${initialSource.name} retornou conteúdo inválido.\n`;
         }
       } catch (e: any) {
@@ -144,7 +183,8 @@ const RSSStoriesFeed: React.FC<RSSStoriesFeedProps> = ({ onSelectArticleForSumma
     if(allFetchedSources.length === 0 && !aggregatedErrorMessages){
         setError("Nenhuma notícia encontrada ou todos os feeds falharam.");
     }
-    setIsLoading(false);
+    if (!isManualRefresh) setIsLoading(false);
+    setIsRefreshing(false);
 
     if (allFetchedSources.length > 0) {
         const allNewsItems = allFetchedSources.flatMap(source => source.items);
@@ -194,6 +234,11 @@ const RSSStoriesFeed: React.FC<RSSStoriesFeedProps> = ({ onSelectArticleForSumma
       return dateString.substring(0,16); 
     }
   };
+  
+  const handleRefresh = () => {
+    fetchAllFeeds(true); // Pass true for manual refresh
+  };
+
 
   const renderLoadingState = () => (
     <Card>
@@ -210,7 +255,12 @@ const RSSStoriesFeed: React.FC<RSSStoriesFeedProps> = ({ onSelectArticleForSumma
 
   const renderErrorState = (errorMessage: string) => (
     <Card>
-      <Card.Header><Card.Title>Feed de Notícias</Card.Title></Card.Header>
+      <Card.Header className="flex justify-between items-center">
+        <Card.Title>Feed de Notícias</Card.Title>
+        <Button onClick={handleRefresh} variant="secondary" size="sm" disabled={isRefreshing} leftIcon={isRefreshing ? <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> : <RefreshCwIcon className="w-4 h-4"/>}>
+          {isRefreshing ? 'Atualizando...' : 'Atualizar'}
+        </Button>
+      </Card.Header>
       <Card.Content className="text-center py-10 text-red-600 dark:text-red-400">
         <p className="whitespace-pre-line">{errorMessage}</p>
       </Card.Content>
@@ -218,15 +268,16 @@ const RSSStoriesFeed: React.FC<RSSStoriesFeedProps> = ({ onSelectArticleForSumma
   );
 
   if (isLoading && activeStorySources.length === 0) return renderLoadingState();
-  if (error && activeStorySources.length === 0 && analysisNewsItems.length === 0) return renderErrorState(error);
-  if (activeStorySources.length === 0 && analysisNewsItems.length === 0 && !isLoading) {
-     return renderErrorState(error || "Nenhuma notícia disponível.");
+  if (error && activeStorySources.length === 0 && analysisNewsItems.length === 0 && !isLoading) return renderErrorState(error);
+  if (activeStorySources.length === 0 && analysisNewsItems.length === 0 && !isLoading && !error) {
+     return renderErrorState("Nenhuma notícia disponível no momento. Tente atualizar.");
   }
+
 
   return (
     <div className="w-full space-y-8">
       <Card>
-        <Card.Header>
+        <Card.Header className="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
           <div className="flex items-center">
             <Card.Title className="text-xl font-semibold">Stories de Notícias</Card.Title>
             <span 
@@ -237,9 +288,12 @@ const RSSStoriesFeed: React.FC<RSSStoriesFeedProps> = ({ onSelectArticleForSumma
               EM TESTES
             </span>
           </div>
+          <Button onClick={handleRefresh} variant="secondary" size="sm" disabled={isRefreshing || isLoading} leftIcon={isRefreshing || (isLoading && activeStorySources.length === 0) ? <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> : <RefreshCwIcon className="w-4 h-4"/>}>
+            {isRefreshing || (isLoading && activeStorySources.length === 0) ? 'Atualizando...' : 'Atualizar Notícias'}
+          </Button>
         </Card.Header>
         <Card.Content>
-          {isLoading && activeStorySources.length > 0 && (
+          {isLoading && activeStorySources.length > 0 && !isRefreshing && (
             <p className="text-xs text-center text-slate-500 dark:text-slate-400 mb-2">Atualizando feeds em segundo plano...</p>
           )}
           {activeStorySources.length > 0 ? (
@@ -253,7 +307,7 @@ const RSSStoriesFeed: React.FC<RSSStoriesFeedProps> = ({ onSelectArticleForSumma
               ))}
             </div>
           ) : (
-             !isLoading && <p className="text-sm text-center text-slate-500 dark:text-slate-400 py-3">Nenhum story disponível no momento.</p>
+             !isLoading && !isRefreshing && <p className="text-sm text-center text-slate-500 dark:text-slate-400 py-3">Nenhum story disponível no momento. Tente atualizar.</p>
           )}
           {error && activeStorySources.length > 0 && (
             <p className="text-xs text-center text-red-500 dark:text-red-400 mt-2 whitespace-pre-line">
@@ -281,7 +335,7 @@ const RSSStoriesFeed: React.FC<RSSStoriesFeedProps> = ({ onSelectArticleForSumma
                 {item.imageUrl && (
                   <img 
                     src={item.imageUrl} 
-                    alt="" // Decorative, title is main info
+                    alt="" 
                     className="w-full sm:w-24 h-24 sm:h-auto object-cover rounded-md flex-shrink-0"
                     onError={(e) => e.currentTarget.style.display = 'none'}
                   />
@@ -307,7 +361,7 @@ const RSSStoriesFeed: React.FC<RSSStoriesFeedProps> = ({ onSelectArticleForSumma
           </div>
         </div>
       )}
-      {activeStorySources.length === 0 && analysisNewsItems.length === 0 && !isLoading && error && (
+      {activeStorySources.length === 0 && analysisNewsItems.length === 0 && !isLoading && !isRefreshing && error && (
          <p className="text-sm text-center text-red-500 dark:text-red-400 py-3">
             Erro ao carregar notícias: {error}
          </p>

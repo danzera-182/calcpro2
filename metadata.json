@@ -1,9 +1,11 @@
-
 {
   "name": "Copy of The Wealth Lab - vercel server",
   "description": "Simule o crescimento dos seus investimentos com juros compostos, visualize a evolução em gráficos e tabelas, e compare diferentes cenários de rentabilidade. Ideal para investidores iniciantes e experientes.",
   "theme_color": "#1E40AF",
   "requestFramePermissions": [],
   "prompt": "",
-  "imports": ["@google/genai", "cheerio"]
+  "imports": [
+    "@google/genai",
+    "cheerio"
+  ]
 }

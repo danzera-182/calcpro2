@@ -1,16 +1,17 @@
+
 // File: api/rss-proxy.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 // Lista de domínios de RSS permitidos para segurança
 const ALLOWED_RSS_DOMAINS = [
   'g1.globo.com',
-  // 'valor.globo.com', // Removido conforme solicitado
   'www.infomoney.com.br',
   'feeds.folha.uol.com.br',
   'exame.com',
   'www.estadao.com.br',
-  'br.cointelegraph.com', // Adicionado Cointelegraph Brasil
-  // Adicione outros domínios de RSS confiáveis aqui
+  'br.cointelegraph.com',
+  'www.suno.com.br', // Added Suno
+  'ir.thomsonreuters.com', // Added Thomson Reuters
 ];
 
 export default async function handler(
@@ -18,7 +19,7 @@ export default async function handler(
   res: VercelResponse
 ) {
   const allowedOrigin = process.env.NODE_ENV === 'production' 
-                         ? 'https://calcpro2.vercel.app' // Seu domínio Vercel de produção
+                         ? 'https://calcpro2.vercel.app' 
                          : '*'; 
 
   res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
@@ -75,7 +76,7 @@ export default async function handler(
         console.warn(`Received non-XML content-type (${responseContentType}) from ${targetUrl}`);
     }
     
-    const rssXmlText = await fetchResponse.text(); // Line 79 in some counts, this line is critical
+    const rssXmlText = await fetchResponse.text(); 
 
     if (!rssXmlText.trim().startsWith('<')) {
         console.error(`Received non-XML content from ${targetUrl}:`, rssXmlText.substring(0, 500));

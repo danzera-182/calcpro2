@@ -110,15 +110,26 @@ export type AppView =
   'bitcoinChartDetail' | 
   'usdtChartDetail' |
   'rssStoriesFeed' |
-  'newsSummaryDetail'; // Added new view for News Summary Detail
+  'newsSummaryDetail' |
+  'economicCalendar'; // Added 'economicCalendar'
 
-export interface ArticleForSummary { // New type for passing article data to summary view
+export interface ArticleForSummary { 
   id: string;
   title: string;
   link: string;
   sourceName: string;
   imageUrl?: string;
   pubDate?: string;
+}
+
+export interface EconomicEventItem { // New type for Economic Calendar events
+  id: string;
+  title: string;
+  link: string;
+  eventDate?: string; // Parsed and formatted date
+  rawPubDate?: string; // Original pubDate from RSS
+  description?: string;
+  sourceName: string;
 }
 
 export type InvestmentPeriodUnit = 'months' | 'years';

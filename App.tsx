@@ -1,6 +1,6 @@
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { InputFormData, ScenarioData, AppView, BtcPriceInfo, UsdtPriceInfo, ArticleForSummary } from './types'; // Added ArticleForSummary
+import { InputFormData, ScenarioData, AppView, BtcPriceInfo, UsdtPriceInfo, ArticleForSummary } from './types'; 
 import { DEFAULT_INPUT_VALUES } from './constants';
 import { calculateProjection } from './utils/calculations';
 import InputForm from './components/InputForm';
@@ -17,7 +17,8 @@ import TerminalView from './components/TerminalView';
 import BitcoinDetailedChart from './components/BitcoinDetailedChart';
 import UsdtDetailedChart from './components/UsdtDetailedChart';
 import RSSStoriesFeed from './components/RSSStoriesFeed';
-import NewsSummaryDetailView from './components/NewsSummaryDetailView'; // Added import for new view
+import NewsSummaryDetailView from './components/NewsSummaryDetailView';
+import EconomicCalendar from './components/EconomicCalendar'; // Added EconomicCalendar import
 import { fetchLatestBitcoinPrice, fetchLatestUsdtPrice } from './utils/economicIndicatorsAPI';
 import { formatCurrency, formatNumberForDisplay, formatNumber } from './utils/formatters';
 
@@ -31,7 +32,8 @@ const viewToPathMap: Record<AppView, string> = {
   bitcoinChartDetail: '/bitcoin',
   usdtChartDetail: '/usdt',
   rssStoriesFeed: '/stories-feed',
-  newsSummaryDetail: '/news-summary', // Added path for News Summary Detail
+  newsSummaryDetail: '/news-summary',
+  economicCalendar: '/economic-calendar', // Added path for Economic Calendar
 };
 
 const pathToViewMap: { [key: string]: AppView } = Object.fromEntries(
@@ -60,7 +62,7 @@ const App: React.FC = () => {
   const [scenarioData, setScenarioData] = useState<ScenarioData | null>(null);
   
   const [activeView, setActiveView] = useState<AppView>('selector'); 
-  const [articleForSummary, setArticleForSummary] = useState<ArticleForSummary | null>(null); // State for selected article
+  const [articleForSummary, setArticleForSummary] = useState<ArticleForSummary | null>(null); 
 
   const [isLoading, setIsLoading] = useState<boolean>(false); 
 
@@ -102,7 +104,7 @@ const App: React.FC = () => {
       const newViewFromHash = getViewFromCurrentHash();
       setActiveView(currentView => {
         if (newViewFromHash !== currentView) {
-          if (newViewFromHash !== 'newsSummaryDetail') { // Prevent clearing article on direct nav to summary (though not ideal)
+          if (newViewFromHash !== 'newsSummaryDetail') { 
             setArticleForSummary(null);
           }
           return newViewFromHash;
@@ -263,6 +265,8 @@ const App: React.FC = () => {
         return "Acompanhe notícias do mercado em formato de stories.";
       case 'newsSummaryDetail':
         return articleForSummary ? `Resumo IA: ${articleForSummary.title.substring(0,30)}...` : "Resumo de Notícia com IA";
+      case 'economicCalendar':
+        return "Calendário de Eventos Econômicos e Corporativos"; // Added subtitle for Economic Calendar
       case 'selector':
       default:
         return null;
@@ -354,7 +358,7 @@ const App: React.FC = () => {
                 </Card.Content>
               </Card>
               <Card 
-                className="cursor-pointer hover:shadow-premium-hover transition-shadow duration-200 ease-in-out transform hover:-translate-y-1 md:col-span-1 lg:col-span-1"
+                className="cursor-pointer hover:shadow-premium-hover transition-shadow duration-200 ease-in-out transform hover:-translate-y-1"
                 onClick={() => setActiveView('macroEconomicPanel')}
                 aria-label="Acessar Painel Macroeconômico"
               >
@@ -368,8 +372,23 @@ const App: React.FC = () => {
                   <Button variant="primary" className="mt-4 w-full" tabIndex={-1}>Acessar Painel</Button>
                 </Card.Content>
               </Card>
+              <Card 
+                className="cursor-pointer hover:shadow-premium-hover transition-shadow duration-200 ease-in-out transform hover:-translate-y-1"
+                onClick={() => setActiveView('economicCalendar')}
+                aria-label="Acessar Calendário Econômico"
+              >
+                <Card.Header>
+                  <Card.Title>📅 Calendário Econômico</Card.Title>
+                </Card.Header>
+                <Card.Content>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                    Acompanhe os próximos eventos e divulgações importantes do mercado.
+                  </p>
+                  <Button variant="primary" className="mt-4 w-full" tabIndex={-1}>Ver Calendário</Button>
+                </Card.Content>
+              </Card>
                <Card 
-                className="cursor-pointer hover:shadow-premium-hover transition-shadow duration-200 ease-in-out transform hover:-translate-y-1 md:col-span-1 lg:col-span-2"
+                className="cursor-pointer hover:shadow-premium-hover transition-shadow duration-200 ease-in-out transform hover:-translate-y-1"
                 onClick={() => setActiveView('rssStoriesFeed')}
                 aria-label="Acessar Feed de Notícias (Stories)"
               >
@@ -389,7 +408,7 @@ const App: React.FC = () => {
                 </Card.Header>
                 <Card.Content>
                   <p className="text-sm text-slate-600 dark:text-slate-400">
-                    Acompanhe as últimas notícias do mercado financeiro em um formato de stories interativo.
+                    Acompanhe as últimas notícias do mercado financeiro em um formato de stories interativo e resuma artigos com IA.
                   </p>
                   <Button variant="primary" className="mt-4 w-full" tabIndex={-1}>Ver Notícias</Button>
                 </Card.Content>
@@ -729,7 +748,7 @@ const App: React.FC = () => {
         );
       case 'newsSummaryDetail':
         if (!articleForSummary) {
-             setActiveView('rssStoriesFeed'); // Should not happen if navigation is correct
+             setActiveView('rssStoriesFeed'); 
              return null;
         }
         return (
@@ -737,6 +756,15 @@ const App: React.FC = () => {
                 article={articleForSummary}
                 onBack={() => { setArticleForSummary(null); setActiveView('rssStoriesFeed'); }}
             />
+        );
+      case 'economicCalendar': // Added case for Economic Calendar
+        return (
+          <>
+            <Button onClick={() => setActiveView('selector')} variant="secondary" size="md" className="mb-6" aria-label="Voltar para seleção de ferramentas">
+              &larr; Voltar para seleção de ferramentas
+            </Button>
+            <EconomicCalendar />
+          </>
         );
       default:
         if (activeView !== 'selector') {
