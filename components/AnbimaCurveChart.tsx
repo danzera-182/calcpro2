@@ -44,15 +44,19 @@ const AnbimaCurveChart: React.FC<AnbimaCurveChartProps> = ({ dataToday, dataWeek
   const mergedData: ChartData[] = React.useMemo(() => {
     const allPointsMap = new Map<number, Partial<ChartData>>();
 
-    const processPoints = (points: AnbimaCurvePoint[] | null, key: keyof Omit<ChartData, 'dias_corridos'>, dateKey: keyof Omit<ChartData, 'dias_corridos' | 'hoje' | 'semana_atras' | 'mes_atras'>) => {
+    const processPoints = (
+      points: AnbimaCurvePoint[] | null, 
+      valueKey: 'hoje' | 'semana_atras' | 'mes_atras', 
+      dateRefKey: 'data_hoje' | 'data_semana_atras' | 'data_mes_atras'
+    ) => {
       if (points) {
         points.forEach(p => {
           if (!allPointsMap.has(p.dias_corridos)) {
             allPointsMap.set(p.dias_corridos, { dias_corridos: p.dias_corridos });
           }
           const entry = allPointsMap.get(p.dias_corridos)!;
-          entry[key] = p.taxa_referencia;
-          entry[dateKey] = p.data_curva;
+          entry[valueKey] = p.taxa_referencia;
+          entry[dateRefKey] = p.data_curva;
         });
       }
     };
