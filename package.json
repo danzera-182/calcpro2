@@ -16,7 +16,8 @@
     "jspdf-autotable": "3.8.2",
     "@google/genai": "^1.1.0",
     "@vercel/node": "^5.2.1",
-    "cheerio": "^1.0.0"
+    "cheerio": "^1.0.0",
+    "buffer": "^6.0.3"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

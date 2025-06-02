@@ -1,12 +1,13 @@
 
 import React from 'react';
 import { Card } from './ui/Card';
-import { useTheme } from '../hooks/useTheme'; // Added import
+import { useTheme } from '../hooks/useTheme'; 
 
 const EconomicCalendarWidget: React.FC = () => {
   const { theme } = useTheme();
 
-  const baseParams = "columns=exc_flags,exc_currency,exc_importance,exc_actual,exc_forecast,exc_previous&features=datepicker,timezone&countries=25,32,6,37,72,22,17,39,14,10,35,43,56,36,110,11,26,12,4,5&calType=day&timeZone=12&lang=1";
+  // Países atualizados: Brasil (32), EUA (5), China (35), Zona do Euro (72)
+  const baseParams = "columns=exc_flags,exc_currency,exc_importance,exc_actual,exc_forecast,exc_previous&features=datepicker,timezone&countries=32,5,35,72&calType=day&timeZone=12&lang=1";
   
   let styleParams = "";
   if (theme === 'light') {
@@ -40,12 +41,12 @@ const EconomicCalendarWidget: React.FC = () => {
           paddingBottom: '71.846%', // Aspect Ratio
           height: 0,
           overflow: 'hidden',
-          maxWidth: '650px', // Max width based on original iframe width
-          margin: '0 auto', // Center the iframe container
+          // maxWidth: '650px', // Removido para melhorar a responsividade em telas menores
+          margin: '0 auto', 
           border: '1px solid', 
-          borderRadius: '0.75rem', // Tailwind rounded-xl
+          borderRadius: '0.75rem', 
         }}
-        className="border-slate-200 dark:border-slate-700" // Dynamic border color via class
+        className="border-slate-200 dark:border-slate-700" 
         >
           <iframe
             src={iframeSrc}

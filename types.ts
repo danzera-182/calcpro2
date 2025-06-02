@@ -312,17 +312,11 @@ export interface StorySource {
 }
 
 export interface AnbimaCurvePoint {
-  curva: string;
-  data_curva: string; // YYYY-MM-DD
+  codigo_curva: string; // Alterado de 'curva'
+  data_curva: string;    // YYYY-MM-DD
   data_referencia: string; // YYYY-MM-DD
-  vencimento: string; // YYYY-MM-DD
+  data_vencimento: string; // Alterado de 'vencimento', YYYY-MM-DD
   dias_corridos: number;
-  dias_uteis?: number;
-  taxa_compra_indicativa?: number;
-  taxa_venda_indicativa?: number;
   taxa_referencia: number; // % a.a.
-  pu_compra_indicativo?: number;
-  pu_venda_indicativo?: number;
-  pu_referencia?: number;
-  desvio_padrao?: number;
+  pu_referencia?: number; // Mantido como opcional, pois o novo endpoint básico tem.
 }

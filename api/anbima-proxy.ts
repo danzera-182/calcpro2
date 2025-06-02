@@ -1,8 +1,11 @@
+
 // File: api/anbima-proxy.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { Buffer } from 'buffer';
 
 const ANBIMA_OAUTH_URL = 'https://api.anbima.com.br/oauth/access-token';
-const ANBIMA_API_BASE_URL = 'https://api.anbima.com.br/feed/ettj/v1/curves';
+// Atualizada a URL base para o endpoint correto de Curvas de Juros
+const ANBIMA_API_BASE_URL = 'https://api.anbima.com.br/feed/precos-indices/v1/titulos-publicos/curvas-juros';
 
 interface AnbimaTokenResponse {
   access_token: string;
@@ -31,14 +34,20 @@ export default async function handler(
     return res.status(405).end(`Method ${req.method} Not Allowed`);
   }
 
-  const { curveType, date } = req.query;
+  // curveType é recebido, mas não será usado na URL da API Anbima para este endpoint.
+  // O cliente filtrará os dados se necessário.
+  const { curveType, date } = req.query; 
 
-  if (!curveType || typeof curveType !== 'string') {
-    return res.status(400).json({ error: 'Missing or invalid curveType parameter.' });
-  }
   if (!date || typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return res.status(400).json({ error: 'Missing or invalid date parameter (must be YYYY-MM-DD).' });
   }
+  // Validação de curveType opcional, já que não é mais crucial para a chamada da API externa.
+  if (!curveType || typeof curveType !== 'string') {
+    // Poderia retornar um erro ou apenas logar, já que o proxy agora o ignora para a URL.
+    // Para manter a compatibilidade com a chamada do cliente, vamos manter o parâmetro mas não usá-lo na URL.
+    console.warn("curveType parameter received but not used for this Anbima API endpoint.");
+  }
+
 
   const clientId = process.env.ANBIMA_CLIENT_ID;
   const clientSecret = process.env.ANBIMA_CLIENT_SECRET;
@@ -91,7 +100,8 @@ export default async function handler(
   }
 
   // 2. Fetch Curve Data using the obtained Access Token
-  const anbimaApiUrl = `${ANBIMA_API_BASE_URL}/${curveType.toUpperCase()}/${date}`;
+  // A URL é construída com 'data' como query parameter. 'curveType' é ignorado para esta API.
+  const anbimaApiUrl = `${ANBIMA_API_BASE_URL}?data=${date}`;
 
   try {
     const fetchResponse = await fetch(anbimaApiUrl, {
@@ -114,7 +124,7 @@ export default async function handler(
             errorDetails += ` Details: ${jsonError.erros.map((e:any) => `${e.campo}: ${e.mensagem}`).join(', ')}`;
         } else if (jsonError.errors && Array.isArray(jsonError.errors) && jsonError.errors.length > 0) {
              errorDetails += ` Details: ${jsonError.errors.map((e:any) => `${e.field}: ${e.defaultMessage}`).join(', ')}`;
-        } else if (jsonError.Mensagem) { // Another possible error format
+        } else if (jsonError.Mensagem) { 
             errorDetails += ` Details: ${jsonError.Mensagem}`;
         }
       } catch(e) {

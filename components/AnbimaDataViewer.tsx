@@ -24,7 +24,7 @@ const AnbimaDataViewer: React.FC = () => {
   };
 
   const fetchAnbimaCurveInternal = useCallback(async (
-    curveType: string, 
+    targetCurveType: string, // e.g., "PRE" - used for client-side filtering
     date: Date,
     dataSetter: React.Dispatch<React.SetStateAction<AnbimaCurvePoint[] | null>>,
     loadingSetter: React.Dispatch<React.SetStateAction<boolean>>,
@@ -32,23 +32,30 @@ const AnbimaDataViewer: React.FC = () => {
   ) => {
     loadingSetter(true);
     errorSetter(null);
-    dataSetter(null); // Clear previous data for this curve
+    dataSetter(null); 
 
     const dateString = formatDateForApi(date);
 
     try {
-      const response = await fetch(`/api/anbima-proxy?curveType=${curveType}&date=${dateString}`);
+      // curveType is passed to the proxy, but the new proxy version for this endpoint will ignore it for URL construction
+      // and instead use `date` as a query param.
+      const response = await fetch(`/api/anbima-proxy?curveType=${targetCurveType}&date=${dateString}`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: `HTTP error ${response.status}` }));
         throw new Error(errorData.error || `Falha ao buscar dados da Anbima para ${dateString}: ${response.statusText}`);
       }
       const apiData: AnbimaCurvePoint[] | { message?: string; erros?: { campo: string, mensagem: string }[] } = await response.json();
       
-      if (Array.isArray(apiData) && apiData.length > 0) {
-        apiData.sort((a, b) => a.dias_corridos - b.dias_corridos);
-        dataSetter(apiData);
-      } else if (Array.isArray(apiData) && apiData.length === 0) {
-        errorSetter(`Nenhum dado encontrado para a curva ${curveType} em ${dateString}. (Pode ser um dia não útil).`);
+      if (Array.isArray(apiData)) {
+        // Filter for the targetCurveType (e.g., "PRE")
+        const filteredData = apiData.filter(point => point.codigo_curva === targetCurveType);
+        
+        if (filteredData.length > 0) {
+          filteredData.sort((a, b) => a.dias_corridos - b.dias_corridos);
+          dataSetter(filteredData);
+        } else {
+           errorSetter(`Nenhum dado encontrado para a curva ${targetCurveType} em ${dateString}. (Pode ser um dia não útil ou dados não disponíveis).`);
+        }
       } else if (typeof apiData === 'object' && apiData !== null && 'erros' in apiData && Array.isArray(apiData.erros) && apiData.erros.length > 0) {
         const anbimaErrorMsg = apiData.erros.map(e => e.mensagem).join('; ');
         errorSetter(`Erro da API Anbima para ${dateString}: ${anbimaErrorMsg}`);
@@ -138,10 +145,10 @@ const AnbimaDataViewer: React.FC = () => {
           </div>
         )}
 
-        {curveDataToday && !isLoadingToday && !errorToday && (
+        {curveDataToday && curveDataToday.length > 0 && !isLoadingToday && !errorToday && (
           <div className="mt-6">
             <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200 mb-2">
-              Detalhes da Curva "{curveDataToday[0]?.curva}" - Data: {formatDateForDisplay(curveDataToday[0]?.data_curva)}
+              Detalhes da Curva "{curveDataToday[0]?.codigo_curva}" - Data: {formatDateForDisplay(curveDataToday[0]?.data_curva)}
             </h3>
             <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
               <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
@@ -155,7 +162,7 @@ const AnbimaDataViewer: React.FC = () => {
                 <tbody className="bg-white dark:bg-slate-800/75 divide-y divide-slate-200 dark:divide-slate-700">
                   {curveDataToday.map((point, index) => (
                     <tr key={`today-${index}`} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/80 transition-colors">
-                      <td className="px-4 py-2 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300">{formatDateForDisplay(point.vencimento)}</td>
+                      <td className="px-4 py-2 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300">{formatDateForDisplay(point.data_vencimento)}</td>
                       <td className="px-4 py-2 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300 text-center">{point.dias_corridos}</td>
                       <td className="px-4 py-2 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300 text-center">
                         {formatNumberForDisplay(point.taxa_referencia, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}%
