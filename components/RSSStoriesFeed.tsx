@@ -45,9 +45,23 @@ const INITIAL_SOURCES: Omit<StorySource, 'items' | 'lastFetched'>[] = [
   {
     id: "reuters-news",
     name: "Reuters News (BR)",
-    rssUrl: 'https://ir.thomsonreuters.com/rss/news-releases.xml?items=15', // This is general TR news, hopefully localized or relevant
+    rssUrl: 'https://ir.thomsonreuters.com/rss/news-releases.xml?items=15', 
     iconUrl: "https://ir.thomsonreuters.com/themes/TR/favicon.ico",
     color: "#FF8000", // Reuters Orange
+  },
+  {
+    id: "cnn-economia",
+    name: "CNN Brasil Economia",
+    rssUrl: 'https://www.cnnbrasil.com.br/economia/feed/',
+    iconUrl: "https://www.cnnbrasil.com.br/wp-content/uploads/sites/12/2023/06/favicon.ico",
+    color: "#CC0000", // CNN Red
+  },
+  {
+    id: "itau-ion-rv",
+    name: "Itaú Ion RV",
+    rssUrl: 'https://www.ion.itau/news/feed/',
+    iconUrl: "https://www.ion.itau/wp-content/uploads/2023/09/cropped-favicon-ion-32x32.png",
+    color: "#EC7000", // Itaú Orange
   }
 ];
 

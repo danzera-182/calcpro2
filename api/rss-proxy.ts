@@ -1,3 +1,4 @@
+
 // File: api/rss-proxy.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
@@ -11,6 +12,8 @@ const ALLOWED_RSS_DOMAINS = [
   'br.cointelegraph.com',
   'www.suno.com.br', 
   'ir.thomsonreuters.com', 
+  'www.cnnbrasil.com.br', // Added CNN Brasil
+  'www.ion.itau',         // Added Itaú Ion
 ];
 
 export default async function handler(

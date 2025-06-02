@@ -111,7 +111,9 @@ export type AppView =
   'usdtChartDetail' |
   'rssStoriesFeed' |
   'newsSummaryDetail' |
-  'economicCalendar'; // Added 'economicCalendar'
+  'economicCalendarWidget' |
+  'anbimaDataViewer' |
+  'experimentalFeatures'; // Added experimentalFeatures view
 
 export interface ArticleForSummary { 
   id: string;
@@ -120,16 +122,6 @@ export interface ArticleForSummary {
   sourceName: string;
   imageUrl?: string;
   pubDate?: string;
-}
-
-export interface EconomicEventItem { // New type for Economic Calendar events
-  id: string;
-  title: string;
-  link: string;
-  eventDate?: string; // Parsed and formatted date
-  rawPubDate?: string; // Original pubDate from RSS
-  description?: string;
-  sourceName: string;
 }
 
 export type InvestmentPeriodUnit = 'months' | 'years';
@@ -317,4 +309,20 @@ export interface StorySource {
   items: NewsItem[];
   lastFetched?: Date;
   color?: string; 
+}
+
+export interface AnbimaCurvePoint {
+  curva: string;
+  data_curva: string; // YYYY-MM-DD
+  data_referencia: string; // YYYY-MM-DD
+  vencimento: string; // YYYY-MM-DD
+  dias_corridos: number;
+  dias_uteis?: number;
+  taxa_compra_indicativa?: number;
+  taxa_venda_indicativa?: number;
+  taxa_referencia: number; // % a.a.
+  pu_compra_indicativo?: number;
+  pu_venda_indicativo?: number;
+  pu_referencia?: number;
+  desvio_padrao?: number;
 }

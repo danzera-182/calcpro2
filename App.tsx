@@ -18,7 +18,8 @@ import BitcoinDetailedChart from './components/BitcoinDetailedChart';
 import UsdtDetailedChart from './components/UsdtDetailedChart';
 import RSSStoriesFeed from './components/RSSStoriesFeed';
 import NewsSummaryDetailView from './components/NewsSummaryDetailView';
-import EconomicCalendar from './components/EconomicCalendar'; // Added EconomicCalendar import
+import EconomicCalendarWidget from './components/EconomicCalendarWidget';
+import AnbimaDataViewer from './components/AnbimaDataViewer';
 import { fetchLatestBitcoinPrice, fetchLatestUsdtPrice } from './utils/economicIndicatorsAPI';
 import { formatCurrency, formatNumberForDisplay, formatNumber } from './utils/formatters';
 
@@ -33,7 +34,9 @@ const viewToPathMap: Record<AppView, string> = {
   usdtChartDetail: '/usdt',
   rssStoriesFeed: '/stories-feed',
   newsSummaryDetail: '/news-summary',
-  economicCalendar: '/economic-calendar', // Added path for Economic Calendar
+  economicCalendarWidget: '/economic-calendar-widget',
+  anbimaDataViewer: '/anbima-data',
+  experimentalFeatures: '/experimental-features', // Added experimental features path
 };
 
 const pathToViewMap: { [key: string]: AppView } = Object.fromEntries(
@@ -56,6 +59,13 @@ const WarningIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
   </svg>
 );
+
+const FlaskIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M14.25 6.083c-.05.39-.142.772-.278 1.135l-.857 2.285a2.25 2.25 0 0 1-.262.643L9.14 14.25H6.36a11.938 11.938 0 0 0-3.094 1.257.75.75 0 0 0-.375.63V18.75c0 .414.336.75.75.75h15a.75.75 0 0 0 .75-.75v-2.603a.75.75 0 0 0-.375-.63 11.938 11.938 0 0 0-3.094-1.257h-2.78L14.53 9.99a2.25 2.25 0 0 1-.262-.643l-.857-2.285A7.47 7.47 0 0 0 14.25 6.083ZM15.75 3a.75.75 0 0 0-.75-.75h-3a.75.75 0 0 0 0 1.5h3a.75.75 0 0 0 .75-.75Z" />
+  </svg>
+);
+
 
 const App: React.FC = () => {
   const [inputValues, setInputValues] = useState<InputFormData>(DEFAULT_INPUT_VALUES);
@@ -265,8 +275,12 @@ const App: React.FC = () => {
         return "Acompanhe notícias do mercado em formato de stories.";
       case 'newsSummaryDetail':
         return articleForSummary ? `Resumo IA: ${articleForSummary.title.substring(0,30)}...` : "Resumo de Notícia com IA";
-      case 'economicCalendar':
-        return "Calendário de Eventos Econômicos e Corporativos"; // Added subtitle for Economic Calendar
+      case 'economicCalendarWidget':
+        return "Eventos econômicos globais em tempo real (Investing.com)"; 
+      case 'anbimaDataViewer':
+        return "Explore dados da Anbima como a curva de juros ETTJ.";
+      case 'experimentalFeatures':
+        return "Ferramentas em fase de teste e desenvolvimento.";
       case 'selector':
       default:
         return null;
@@ -372,22 +386,52 @@ const App: React.FC = () => {
                   <Button variant="primary" className="mt-4 w-full" tabIndex={-1}>Acessar Painel</Button>
                 </Card.Content>
               </Card>
-              <Card 
+               <Card 
                 className="cursor-pointer hover:shadow-premium-hover transition-shadow duration-200 ease-in-out transform hover:-translate-y-1"
-                onClick={() => setActiveView('economicCalendar')}
+                onClick={() => setActiveView('economicCalendarWidget')}
                 aria-label="Acessar Calendário Econômico"
               >
                 <Card.Header>
-                  <Card.Title>📅 Calendário Econômico</Card.Title>
+                  <Card.Title>🗓️ Calendário Econômico</Card.Title>
                 </Card.Header>
                 <Card.Content>
                   <p className="text-sm text-slate-600 dark:text-slate-400">
-                    Acompanhe os próximos eventos e divulgações importantes do mercado.
+                    Eventos e indicadores importantes em tempo real (Investing.com).
                   </p>
-                  <Button variant="primary" className="mt-4 w-full" tabIndex={-1}>Ver Calendário</Button>
+                  <Button variant="primary" className="mt-4 w-full" tabIndex={-1}>Acessar Calendário</Button>
                 </Card.Content>
               </Card>
-               <Card 
+              <Card 
+                className="cursor-pointer hover:shadow-premium-hover transition-shadow duration-200 ease-in-out transform hover:-translate-y-1"
+                onClick={() => setActiveView('experimentalFeatures')}
+                aria-label="Acessar Funcionalidades Experimentais"
+              >
+                <Card.Header>
+                  <Card.Title>
+                     <div className="flex items-center">
+                        <FlaskIcon className="w-5 h-5 mr-2 text-purple-500 dark:text-purple-400" />
+                        Funcionalidades Experimentais
+                      </div>
+                  </Card.Title>
+                </Card.Header>
+                <Card.Content>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                    Explore ferramentas em desenvolvimento e teste, como o Feed de Notícias e Dados da Anbima.
+                  </p>
+                  <Button variant="primary" className="mt-4 w-full" tabIndex={-1}>Explorar Testes</Button>
+                </Card.Content>
+              </Card>
+            </div>
+          </>
+        );
+      case 'experimentalFeatures':
+        return (
+          <>
+            <Button onClick={() => setActiveView('selector')} variant="secondary" size="md" className="mb-6" aria-label="Voltar para seleção de ferramentas">
+              &larr; Voltar para seleção de ferramentas
+            </Button>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
+              <Card 
                 className="cursor-pointer hover:shadow-premium-hover transition-shadow duration-200 ease-in-out transform hover:-translate-y-1"
                 onClick={() => setActiveView('rssStoriesFeed')}
                 aria-label="Acessar Feed de Notícias (Stories)"
@@ -411,6 +455,32 @@ const App: React.FC = () => {
                     Acompanhe as últimas notícias do mercado financeiro em um formato de stories interativo e resuma artigos com IA.
                   </p>
                   <Button variant="primary" className="mt-4 w-full" tabIndex={-1}>Ver Notícias</Button>
+                </Card.Content>
+              </Card>
+              <Card 
+                className="cursor-pointer hover:shadow-premium-hover transition-shadow duration-200 ease-in-out transform hover:-translate-y-1"
+                onClick={() => setActiveView('anbimaDataViewer')}
+                aria-label="Acessar Dados da Anbima"
+              >
+                <Card.Header>
+                  <Card.Title>
+                     <div className="flex items-center">
+                        🏛️ Dados Anbima
+                        <span 
+                          className="ml-2 inline-flex items-center bg-cyan-100 dark:bg-cyan-700/50 text-cyan-700 dark:text-cyan-300 text-xs font-semibold px-2 py-0.5 rounded-full"
+                          title="Esta funcionalidade está em fase de testes (requer configuração de API Key da Anbima)."
+                        >
+                          <WarningIcon className="w-3 h-3 mr-1 text-cyan-500 dark:text-cyan-400" />
+                          EM TESTES
+                        </span>
+                      </div>
+                  </Card.Title>
+                </Card.Header>
+                <Card.Content>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                    Visualize dados da Anbima, como a curva de juros ETTJ. (Requer configuração de API Key).
+                  </p>
+                  <Button variant="primary" className="mt-4 w-full" tabIndex={-1}>Acessar Dados</Button>
                 </Card.Content>
               </Card>
             </div>
@@ -757,13 +827,22 @@ const App: React.FC = () => {
                 onBack={() => { setArticleForSummary(null); setActiveView('rssStoriesFeed'); }}
             />
         );
-      case 'economicCalendar': // Added case for Economic Calendar
+      case 'economicCalendarWidget':
         return (
           <>
             <Button onClick={() => setActiveView('selector')} variant="secondary" size="md" className="mb-6" aria-label="Voltar para seleção de ferramentas">
               &larr; Voltar para seleção de ferramentas
             </Button>
-            <EconomicCalendar />
+            <EconomicCalendarWidget />
+          </>
+        );
+      case 'anbimaDataViewer':
+        return (
+          <>
+            <Button onClick={() => setActiveView('selector')} variant="secondary" size="md" className="mb-6" aria-label="Voltar para seleção de ferramentas">
+              &larr; Voltar para seleção de ferramentas
+            </Button>
+            <AnbimaDataViewer />
           </>
         );
       default:
