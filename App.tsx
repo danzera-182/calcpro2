@@ -20,6 +20,7 @@ import RSSStoriesFeed from './components/RSSStoriesFeed';
 import NewsSummaryDetailView from './components/NewsSummaryDetailView';
 import EconomicCalendarWidget from './components/EconomicCalendarWidget';
 import AnbimaDataViewer from './components/AnbimaDataViewer';
+import PropertyComparator from './components/PropertyComparator'; // New Import
 import { fetchLatestBitcoinPrice, fetchLatestUsdtPrice } from './utils/economicIndicatorsAPI';
 import { formatCurrency, formatNumberForDisplay, formatNumber } from './utils/formatters';
 
@@ -28,6 +29,7 @@ const viewToPathMap: Record<AppView, string> = {
   compoundInterest: '/compound-interest',
   fixedIncomeComparator: '/fixed-income-comparator',
   comprehensiveComparator: '/comprehensive-comparator',
+  rentVsBuyCalculator: '/rent-vs-buy', // New Path
   macroEconomicPanel: '/macro-economic-panel',
   macroEconomicTerminal: '/macro-economic-terminal',
   bitcoinChartDetail: '/bitcoin',
@@ -36,7 +38,7 @@ const viewToPathMap: Record<AppView, string> = {
   newsSummaryDetail: '/news-summary',
   economicCalendarWidget: '/economic-calendar-widget',
   anbimaDataViewer: '/anbima-data',
-  experimentalFeatures: '/experimental-features', // Added experimental features path
+  experimentalFeatures: '/experimental-features', 
 };
 
 const pathToViewMap: { [key: string]: AppView } = Object.fromEntries(
@@ -263,6 +265,8 @@ const App: React.FC = () => {
         return "Analise a equivalência de rentabilidade entre investimentos de renda fixa tributados e isentos.";
       case 'comprehensiveComparator':
         return "Compare diferentes aplicações de renda fixa com parâmetros detalhados.";
+      case 'rentVsBuyCalculator': // New Subtitle
+        return "Analise se vale mais a pena alugar ou financiar um imóvel.";
       case 'macroEconomicPanel':
         return "Acompanhe os principais indicadores macroeconômicos do Brasil.";
       case 'macroEconomicTerminal':
@@ -276,7 +280,7 @@ const App: React.FC = () => {
       case 'newsSummaryDetail':
         return articleForSummary ? `Resumo IA: ${articleForSummary.title.substring(0,30)}...` : "Resumo de Notícia com IA";
       case 'economicCalendarWidget':
-        return "Eventos econômicos globais em tempo real (Investing.com)"; 
+        return "Eventos econômicos globais em tempo real (TradingView)"; 
       case 'anbimaDataViewer':
         return "Explore dados da Anbima como a curva de juros ETTJ.";
       case 'experimentalFeatures':
@@ -371,6 +375,22 @@ const App: React.FC = () => {
                   <Button variant="primary" className="mt-4 w-full" tabIndex={-1}>Acessar Comparador</Button>
                 </Card.Content>
               </Card>
+              {/* New Card for Rent vs. Buy Calculator */}
+              <Card 
+                className="cursor-pointer hover:shadow-premium-hover transition-shadow duration-200 ease-in-out transform hover:-translate-y-1"
+                onClick={() => setActiveView('rentVsBuyCalculator')}
+                aria-label="Acessar Calculadora Alugar vs. Financiar Imóvel"
+              >
+                <Card.Header>
+                  <Card.Title>🏘️ Alugar vs. Financiar Imóvel</Card.Title>
+                </Card.Header>
+                <Card.Content>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                    Compare os cenários de alugar e investir a diferença versus financiar a compra de um imóvel, projetando seu patrimônio total.
+                  </p>
+                  <Button variant="primary" className="mt-4 w-full" tabIndex={-1}>Acessar Calculadora</Button>
+                </Card.Content>
+              </Card>
               <Card 
                 className="cursor-pointer hover:shadow-premium-hover transition-shadow duration-200 ease-in-out transform hover:-translate-y-1"
                 onClick={() => setActiveView('macroEconomicPanel')}
@@ -396,7 +416,7 @@ const App: React.FC = () => {
                 </Card.Header>
                 <Card.Content>
                   <p className="text-sm text-slate-600 dark:text-slate-400">
-                    Eventos e indicadores importantes em tempo real (Investing.com).
+                    Eventos e indicadores importantes em tempo real (TradingView).
                   </p>
                   <Button variant="primary" className="mt-4 w-full" tabIndex={-1}>Acessar Calendário</Button>
                 </Card.Content>
@@ -560,6 +580,15 @@ const App: React.FC = () => {
               &larr; Voltar para seleção de ferramentas
             </Button>
             <ComprehensiveComparator /> 
+          </>
+        );
+       case 'rentVsBuyCalculator': // New Case
+        return (
+          <>
+            <Button onClick={() => setActiveView('selector')} variant="secondary" size="md" className="mb-6" aria-label="Voltar para seleção de ferramentas">
+              &larr; Voltar para seleção de ferramentas
+            </Button>
+            <PropertyComparator />
           </>
         );
       case 'macroEconomicPanel':
@@ -810,8 +839,8 @@ const App: React.FC = () => {
       case 'rssStoriesFeed':
         return (
           <>
-            <Button onClick={() => setActiveView('selector')} variant="secondary" size="md" className="mb-6" aria-label="Voltar para seleção de ferramentas">
-              &larr; Voltar para seleção de ferramentas
+            <Button onClick={() => setActiveView('experimentalFeatures')} variant="secondary" size="md" className="mb-6" aria-label="Voltar para Funcionalidades Experimentais">
+              &larr; Voltar para Funcionalidades Experimentais
             </Button>
             <RSSStoriesFeed onSelectArticleForSummary={handleSelectArticleForSummary} />
           </>
@@ -839,8 +868,8 @@ const App: React.FC = () => {
       case 'anbimaDataViewer':
         return (
           <>
-            <Button onClick={() => setActiveView('selector')} variant="secondary" size="md" className="mb-6" aria-label="Voltar para seleção de ferramentas">
-              &larr; Voltar para seleção de ferramentas
+            <Button onClick={() => setActiveView('experimentalFeatures')} variant="secondary" size="md" className="mb-6" aria-label="Voltar para Funcionalidades Experimentais">
+              &larr; Voltar para Funcionalidades Experimentais
             </Button>
             <AnbimaDataViewer />
           </>

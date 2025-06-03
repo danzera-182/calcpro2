@@ -118,6 +118,7 @@ export type AppView =
   'compoundInterest' | 
   'fixedIncomeComparator' | 
   'comprehensiveComparator' | 
+  'rentVsBuyCalculator' | // New View
   'macroEconomicPanel' | 
   'macroEconomicTerminal' | 
   'bitcoinChartDetail' | 
@@ -126,7 +127,7 @@ export type AppView =
   'newsSummaryDetail' |
   'economicCalendarWidget' |
   'anbimaDataViewer' |
-  'experimentalFeatures'; // Added experimentalFeatures view
+  'experimentalFeatures';
 
 export interface ArticleForSummary { 
   id: string;
@@ -332,4 +333,42 @@ export interface AnbimaCurvePoint {
   dias_corridos: number;
   taxa_referencia: number; // % a.a.
   pu_referencia?: number; // Mantido como opcional, pois o novo endpoint básico tem.
+}
+
+// Types for Rent vs. Buy Calculator
+export interface PropertyComparatorInputs {
+  propertyValue: number | null;
+  downPayment: number | null;
+  financingCosts: number | null; // Initial costs like ITBI, registration
+  financingTermMonths: number | null;
+  annualInterestRatePercent: number | null; // For property financing
+
+  monthlyRent: number | null;
+  annualRentIncreasePercent: number | null; // e.g., IGPM
+  annualPropertyAppreciationPercent: number | null; // Property valuation increase
+
+  annualInvestmentReturnPercent: number | null; // For investing the difference or parallel investments
+  additionalMonthlyInvestmentIfBuying: number | null; // For the "Buy and Invest" scenario
+}
+
+export interface PropertyScenarioOutput {
+  scenarioName: string;
+  totalPatrimony: number;
+  propertyValueEndOfPeriod?: number;
+  investmentsValueEndOfPeriod?: number;
+  totalFinancingPaid?: number; // Principal + Interest for financing
+  totalRentPaid?: number;
+  totalInitialCashOutlay: number; // Down payment + financing costs
+  totalAdditionalInvestedPrincipal?: number; // Sum of additional monthly investments principal
+  remainingLoanBalance?: number; // For patrimony calculation if loan not fully paid
+  details?: string[]; // For brief explanatory notes under each scenario card
+}
+
+export interface PropertyComparisonResults {
+  buyOnly: PropertyScenarioOutput;
+  buyAndInvest: PropertyScenarioOutput;
+  rentAndInvest: PropertyScenarioOutput;
+  bestOption: 'buyOnly' | 'buyAndInvest' | 'rentAndInvest' | 'comparable' | 'insufficientData';
+  analysisPeriodYears: number;
+  recommendationText: string;
 }

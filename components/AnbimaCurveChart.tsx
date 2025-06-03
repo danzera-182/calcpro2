@@ -35,6 +35,26 @@ interface CustomTooltipProps {
   label?: number; // The X-axis value (dias_corridos)
 }
 
+const CustomTooltipContent: React.FC<CustomTooltipProps> = ({ active, payload, label }) => {
+  if (active && payload && payload.length) {
+    const pointData = payload[0].payload;
+    return (
+      <div className="bg-white dark:bg-slate-800 p-3 shadow-lg rounded-md border border-slate-300 dark:border-slate-700 opacity-95">
+        <p className="label font-semibold text-gray-700 dark:text-gray-200 mb-2">
+          Dias Corridos: {label}
+        </p>
+        {payload.map((entry) => (
+          <p key={entry.dataKey} className="text-sm" style={{ color: entry.stroke }}>
+            {`${entry.name} (${entry.dataKey === 'hoje' ? pointData.data_hoje?.split('-').reverse().join('/') : entry.dataKey === 'semana_atras' ? pointData.data_semana_atras?.split('-').reverse().join('/') : pointData.data_mes_atras?.split('-').reverse().join('/')}): ${formatNumberForDisplay(entry.value, {minimumFractionDigits: 2, maximumFractionDigits: 4})}%`}
+          </p>
+        ))}
+      </div>
+    );
+  }
+  return null;
+};
+
+
 const AnbimaCurveChart: React.FC<AnbimaCurveChartProps> = ({ dataToday, dataWeekAgo, dataMonthAgo }) => {
   const { theme } = useTheme();
   const axisLabelColor = theme === 'dark' ? '#9CA3AF' : '#6B7280';
@@ -54,9 +74,9 @@ const AnbimaCurveChart: React.FC<AnbimaCurveChartProps> = ({ dataToday, dataWeek
           if (!allPointsMap.has(p.dias_corridos)) {
             allPointsMap.set(p.dias_corridos, { dias_corridos: p.dias_corridos });
           }
-          const entry = allPointsMap.get(p.dias_corridos)!;
-          entry[valueKey] = p.taxa_referencia;
-          entry[dateRefKey] = p.data_curva;
+          const existing = allPointsMap.get(p.dias_corridos)!;
+          existing[valueKey] = p.taxa_referencia;
+          existing[dateRefKey] = p.data_curva; // Store the curve date for tooltip
         });
       }
     };
@@ -65,74 +85,62 @@ const AnbimaCurveChart: React.FC<AnbimaCurveChartProps> = ({ dataToday, dataWeek
     processPoints(dataWeekAgo, 'semana_atras', 'data_semana_atras');
     processPoints(dataMonthAgo, 'mes_atras', 'data_mes_atras');
     
-    // Cast to ChartData[] as dias_corridos is guaranteed by processPoints logic
-    return Array.from(allPointsMap.values())
-      .sort((a, b) => (a.dias_corridos ?? 0) - (b.dias_corridos ?? 0)) as ChartData[];
+    const allPointsArray = Array.from(allPointsMap.values()) as ChartData[];
+    return allPointsArray.sort((a, b) => a.dias_corridos - b.dias_corridos);
   }, [dataToday, dataWeekAgo, dataMonthAgo]);
 
   if (mergedData.length === 0) {
-    return <p className="text-sm text-center text-slate-500 dark:text-slate-400 py-5">Nenhum dado disponível para exibir no gráfico.</p>;
+    return <p className="text-center text-slate-500 dark:text-slate-400 py-10">Sem dados para exibir no gráfico comparativo.</p>;
   }
-  
-  const formatDateForDisplay = (dateString?: string): string => {
-    if (!dateString) return '';
-    const parts = dateString.split('-');
-    if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
-    return dateString;
-  };
 
-  const CustomTooltipContent: React.FC<CustomTooltipProps> = ({ active, payload, label }) => {
-    if (active && payload && payload.length && label !== undefined) {
-      const pointDataFromPayload = payload[0].payload;
-      return (
-        <div className="bg-white dark:bg-slate-800 p-3 shadow-lg rounded-md border border-slate-300 dark:border-slate-700 opacity-95">
-          <p className="font-semibold text-slate-700 dark:text-slate-200 mb-2">Prazo: {label} dias</p>
-          {payload.map((entry) => (
-            <p key={String(entry.dataKey)} style={{ color: entry.stroke }} className="text-sm">
-              {entry.name}
-              {entry.dataKey === 'hoje' && pointDataFromPayload.data_hoje ? ` (${formatDateForDisplay(pointDataFromPayload.data_hoje)})` : ''}
-              {entry.dataKey === 'semana_atras' && pointDataFromPayload.data_semana_atras ? ` (${formatDateForDisplay(pointDataFromPayload.data_semana_atras)})` : ''}
-              {entry.dataKey === 'mes_atras' && pointDataFromPayload.data_mes_atras ? ` (${formatDateForDisplay(pointDataFromPayload.data_mes_atras)})` : ''}
-              : {formatNumberForDisplay(entry.value, {minimumFractionDigits: 2, maximumFractionDigits: 4})}%
-            </p>
-          ))}
-        </div>
-      );
-    }
-    return null;
-  };
-  
-  const yValues = mergedData.flatMap(d => [d.hoje, d.semana_atras, d.mes_atras]).filter(v => v !== undefined) as number[];
-  const yMin = yValues.length > 0 ? Math.min(...yValues) : 0;
-  const yMax = yValues.length > 0 ? Math.max(...yValues) : 0;
-  const yDomainPadding = (yMax - yMin) * 0.05;
+  const yAxisTickFormatter = (value: number) => `${value.toFixed(2)}%`;
 
+  const series = [];
+  if (dataToday && dataToday.length > 0) {
+    series.push({ name: `Hoje (${dataToday[0].data_curva.split('-').reverse().join('/')})`, dataKey: 'hoje', stroke: CHART_COLORS.mainStrategy });
+  }
+  if (dataWeekAgo && dataWeekAgo.length > 0) {
+    series.push({ name: `7d Atrás (${dataWeekAgo[0].data_curva.split('-').reverse().join('/')})`, dataKey: 'semana_atras', stroke: CHART_COLORS.ipca });
+  }
+  if (dataMonthAgo && dataMonthAgo.length > 0) {
+    series.push({ name: `1 Mês Atrás (${dataMonthAgo[0].data_curva.split('-').reverse().join('/')})`, dataKey: 'mes_atras', stroke: CHART_COLORS.totalInvested });
+  }
 
   return (
-    <div style={{ width: '100%', height: 350 }}>
+    <div style={{ width: '100%', height: 400 }}>
       <ResponsiveContainer>
-        <LineChart data={mergedData} margin={{ top: 5, right: 20, left: 20, bottom: 5 }}>
+        <LineChart data={mergedData} margin={{ top: 5, right: 20, left: 25, bottom: 20 }}>
           <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
           <XAxis 
             dataKey="dias_corridos" 
             type="number"
             domain={['dataMin', 'dataMax']}
             tick={{ fill: tickColor, fontSize: 10 }}
-            label={{ value: "Dias Corridos", position: 'insideBottomRight', offset: -2, fill: axisLabelColor, fontSize: 10 }}
+            label={{ value: "Dias Corridos do Vértice", position: 'insideBottom', offset: -10, fill: axisLabelColor, fontSize: 12 }}
           />
           <YAxis 
-            tickFormatter={(value) => `${formatNumberForDisplay(value, {minimumFractionDigits:2, maximumFractionDigits:2})}%`}
+            tickFormatter={yAxisTickFormatter}
             tick={{ fill: tickColor, fontSize: 10 }}
-            domain={[yMin - yDomainPadding, yMax + yDomainPadding]}
-            label={{ value: "Taxa Ref. (% a.a.)", angle: -90, position: 'insideLeft', offset: -15, fill: axisLabelColor, fontSize: 10 }}
+            label={{ value: "Taxa (% a.a.)", angle: -90, position: 'insideLeft', offset: -15, fill: axisLabelColor, fontSize: 12 }}
+            domain={['auto', 'auto']}
             allowDataOverflow={false}
           />
           <Tooltip content={<CustomTooltipContent />} />
-          <Legend verticalAlign="top" height={30} wrapperStyle={{fontSize: "12px", color: tickColor }}/>
-          {dataToday && <Line type="monotone" dataKey="hoje" name="Hoje" stroke={CHART_COLORS.mainStrategy || "#3B82F6"} strokeWidth={2} dot={false} activeDot={{ r: 5 }} connectNulls />}
-          {dataWeekAgo && <Line type="monotone" dataKey="semana_atras" name="7 Dias Atrás" stroke={CHART_COLORS.ipca || "#F59E0B"} strokeWidth={2} dot={false} activeDot={{ r: 5 }} connectNulls />}
-          {dataMonthAgo && <Line type="monotone" dataKey="mes_atras" name="1 Mês Atrás" stroke={CHART_COLORS.ibovespa || "#10B981"} strokeWidth={2} dot={false} activeDot={{ r: 5 }} connectNulls />}
-          {yMin < 0 && yMax > 0 && <ReferenceLine y={0} stroke={axisLabelColor} strokeDasharray="2 2" />}
+          <Legend verticalAlign="top" height={36} wrapperStyle={{fontSize: "10px", color: tickColor, overflow: "auto", maxHeight:"50px"}}/>
+          {series.map(s => (
+            <Line 
+              key={s.dataKey}
+              type="monotone" 
+              dataKey={s.dataKey as keyof ChartData} // Cast to keyof ChartData
+              name={s.name} 
+              stroke={s.stroke}
+              strokeWidth={2} 
+              dot={mergedData.length < 50 ? { r: 2, fill:s.stroke } : false}
+              activeDot={{ r: 5 }} 
+              connectNulls={false} 
+            />
+          ))}
+          <ReferenceLine y={0} stroke={axisLabelColor} strokeDasharray="2 2" />
         </LineChart>
       </ResponsiveContainer>
     </div>
