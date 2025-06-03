@@ -36,6 +36,8 @@ export interface ProjectionPoint {
   age?: number;
   inflatedDesiredMonthlyIncome?: number;
   requiredCapitalForDesiredIncome?: number;
+  totalWithdrawalsYearly?: number; // Added for yearly withdrawals
+  cumulativeWithdrawals?: number;  // Added for cumulative withdrawals
 }
 
 export interface MonthlyProjectionPoint {
@@ -48,6 +50,7 @@ export interface MonthlyProjectionPoint {
   interestEarnedMonthly: number;
   finalBalanceMonthly: number;
   age?: number; 
+  withdrawalMonthly?: number; // Added for monthly withdrawals
 }
 
 export interface ChartDataPoint {
@@ -73,6 +76,11 @@ export interface RetirementAnalysisResults {
   canMeetGoal: boolean;
   swrUsed: number; 
   achievableMonthlyIncomeWithProjectedCapital?: number; 
+  projectedCapitalAt72?: number; // For inheritance
+  perpetualMonthlyWithdrawalFutureValue?: number; // At retirement age (SWR based)
+  perpetualMonthlyWithdrawalTodayValue?: number; // PV of the SWR based if inflation-adjusted
+  interestOnlyMonthlyWithdrawalFutureValue?: number; // At retirement age (Interest-only based)
+  interestOnlyMonthlyWithdrawalTodayValue?: number; // PV of the Interest-only if inflation-adjusted
 }
 
 
@@ -83,7 +91,7 @@ export interface ThemeContextType {
   toggleTheme: () => void;
 }
 
-export type FixedIncomeInvestmentType = 'pre' | 'post';
+export type FixedIncomeInvestmentType = 'pre' | 'post' | 'ipca';
 export type TermUnit = 'days' | 'years';
 export type ConversionDirection = 'grossToNet' | 'netToGross';
 
@@ -98,6 +106,11 @@ export interface FixedIncomeResult {
   finalNetAnnualRate: number;
   equivalentGrossCdiPercentage?: number;
   equivalentNetCdiPercentage?: number;
+  // Fields for IPCA+
+  inputIpcaRate?: number;      // The IPCA rate used in calculation
+  inputRealRate?: number;      // The real rate input by user (for GrossToNet)
+  calculatedRealRate?: number; // The real rate calculated (for NetToGross)
+  equivalentExemptRealRate_Ipca?: number; // The equivalent real rate if the investment were IPCA+ exempt
 }
 
 export type AppView = 

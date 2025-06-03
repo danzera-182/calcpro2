@@ -1,6 +1,5 @@
-
 import React from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceDot } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, Label, ReferenceDot } from 'recharts';
 import { ProjectionPoint, ChartDataPoint, SpecificContribution } from '../types';
 import { formatCurrency, formatNumber } from '../utils/formatters';
 import { useTheme } from '../hooks/useTheme';
@@ -10,6 +9,7 @@ interface LineChartComponentProps {
   data: ProjectionPoint[];
   specificContributions?: SpecificContribution[];
   currentAge?: number; // If provided, X-axis can show age
+  retirementAgeMarker?: number; // Age at which retirement starts, for the marker
 }
 
 const CustomTooltip: React.FC<any> = ({ active, payload, label, currentAge }) => {
@@ -29,7 +29,7 @@ const CustomTooltip: React.FC<any> = ({ active, payload, label, currentAge }) =>
   return null;
 };
 
-const LineChartComponent: React.FC<LineChartComponentProps> = ({ data, specificContributions, currentAge }) => {
+const LineChartComponent: React.FC<LineChartComponentProps> = ({ data, specificContributions, currentAge, retirementAgeMarker }) => {
   const { theme } = useTheme();
   const axisLabelColor = theme === 'dark' ? '#9CA3AF' : '#6B7280'; 
   const tickColor = theme === 'dark' ? '#D1D5DB' : '#374151';    
@@ -84,6 +84,13 @@ const LineChartComponent: React.FC<LineChartComponentProps> = ({ data, specificC
       />
     );
   }).filter(Boolean);
+
+  const showRetirementMarker = 
+    retirementAgeMarker !== undefined && 
+    currentAge !== undefined && // Ensures x-axis is age
+    finalChartData.length > 1 && // Ensure there is data to plot against
+    retirementAgeMarker >= finalChartData[0].year && // Marker is within or at start of chart
+    retirementAgeMarker <= finalChartData[finalChartData.length - 1].year; // Marker is within or at end of chart
 
 
   return (
@@ -140,6 +147,25 @@ const LineChartComponent: React.FC<LineChartComponentProps> = ({ data, specificC
             activeDot={{ r: 6 }} 
           />
           {contributionReferenceDots}
+          {showRetirementMarker && (
+            <ReferenceLine 
+              x={retirementAgeMarker} 
+              stroke={theme === 'dark' ? "#F87171" : "#EF4444"} // red-400 dark, red-500 light
+              strokeDasharray="4 4" 
+              strokeWidth={1.5}
+            >
+              <Label 
+                value="Aposentadoria" 
+                angle={-90} 
+                position="insideTopLeft" 
+                fill={theme === 'dark' ? "#F87171" : "#EF4444"} 
+                fontSize={10} 
+                dy={-5} // Adjust dy for vertical positioning relative to the line
+                dx={-5} // Adjust dx for horizontal positioning relative to the line
+                className="font-semibold"
+              />
+            </ReferenceLine>
+          )}
         </LineChart>
       </ResponsiveContainer>
     </div>

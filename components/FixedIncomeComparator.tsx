@@ -1,7 +1,7 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 import { FixedIncomeInvestmentType, TermUnit, FixedIncomeResult, ConversionDirection } from '../types';
-import { DEFAULT_CDI_RATE } from '../constants';
+import { DEFAULT_CDI_RATE, DEFAULT_COMPREHENSIVE_INPUTS } from '../constants';
 import { getIrRate, convertCdiPercentageToGrossRate, calculateNetAnnualYield, yearsToDays, calculateGrossAnnualYieldFromNet } from '../utils/fixedIncomeCalculations';
 import Input from './ui/Input'; 
 import Button from './ui/Button';
@@ -9,6 +9,13 @@ import Select from './ui/Select';
 import { Card } from './ui/Card';
 import FormattedNumericInput from './ui/FormattedNumericInput';
 import { formatNumberForDisplay } from '../utils/formatters';
+import { fetchEconomicIndicators } from '../utils/economicIndicatorsAPI'; 
+import InfoTooltip from './ui/InfoTooltip'; 
+
+const AutoFetchedMarker: React.FC<{ isFetched?: boolean; tooltipText?: string; className?: string }> = ({ isFetched, tooltipText, className }) => {
+  if (!isFetched) return null;
+  return <InfoTooltip text={tooltipText || "Valor preenchido automaticamente."}><span className={`text-blue-500 dark:text-blue-400 ${className || ''}`}>*</span></InfoTooltip>;
+};
 
 
 const FixedIncomeComparator: React.FC = () => {
@@ -17,6 +24,13 @@ const FixedIncomeComparator: React.FC = () => {
   
   const [inputRateValue, setInputRateValue] = useState<number | null>(12); 
   const [currentCdiRatePost, setCurrentCdiRatePost] = useState<number | null>(DEFAULT_CDI_RATE);
+  
+  // State for IPCA+ type
+  const [inputIpcaRate, setInputIpcaRate] = useState<number | null>(DEFAULT_COMPREHENSIVE_INPUTS.ipcaRate ?? 3.5);
+  const [isFetchingIpca, setIsFetchingIpca] = useState<boolean>(false);
+  const [ipcaFetchError, setIpcaFetchError] = useState<string | null>(null);
+  const [ipcaAutoFetched, setIpcaAutoFetched] = useState<boolean>(false);
+
 
   const [termValue, setTermValue] = useState<number>(2); 
   const [termUnit, setTermUnit] = useState<TermUnit>('years');
@@ -28,15 +42,48 @@ const FixedIncomeComparator: React.FC = () => {
     setResult(null); 
     if (investmentType === 'pre') {
       setInputRateValue(conversionDirection === 'grossToNet' ? 12 : 6); 
-    } else { 
+    } else if (investmentType === 'post') { 
       setInputRateValue(conversionDirection === 'grossToNet' ? 100 : 85); 
+    } else if (investmentType === 'ipca') {
+      setInputRateValue(conversionDirection === 'grossToNet' ? 6 : 3); // Default real rate or net rate for IPCA+
     }
   }, [investmentType, conversionDirection]);
+
+  useEffect(() => {
+    if (investmentType === 'ipca') {
+      setIsFetchingIpca(true);
+      setIpcaFetchError(null);
+      setIpcaAutoFetched(false);
+      fetchEconomicIndicators()
+        .then(data => {
+          if (data.ipcaRate !== undefined) {
+            setInputIpcaRate(data.ipcaRate);
+            setIpcaAutoFetched(true); 
+          } else {
+            setIpcaFetchError("IPCA não encontrado. Usando valor padrão.");
+            setInputIpcaRate(DEFAULT_COMPREHENSIVE_INPUTS.ipcaRate ?? 3.5);
+          }
+        })
+        .catch(err => {
+          console.error("Error fetching IPCA for comparator:", err);
+          setIpcaFetchError("Erro ao buscar IPCA. Usando valor padrão.");
+          setInputIpcaRate(DEFAULT_COMPREHENSIVE_INPUTS.ipcaRate ?? 3.5);
+        })
+        .finally(() => setIsFetchingIpca(false));
+    } else {
+      setIpcaFetchError(null);
+      setIpcaAutoFetched(false);
+    }
+  }, [investmentType]);
 
 
   const handleFormattedRateChange = (name: string, value: number | null) => {
     if (name === 'inputRateValue') setInputRateValue(value);
     if (name === 'currentCdiRatePost') setCurrentCdiRatePost(value);
+    if (name === 'inputIpcaRate') {
+        setInputIpcaRate(value);
+        setIpcaAutoFetched(false); 
+    }
     setResult(null); 
   };
   
@@ -62,6 +109,7 @@ const FixedIncomeComparator: React.FC = () => {
 
       const rateInput = inputRateValue ?? 0;
       const cdiRateActual = currentCdiRatePost ?? 0;
+      const ipcaRateActual = inputIpcaRate ?? 0;
 
       let calculatedResult: FixedIncomeResult | null = null;
 
@@ -93,7 +141,7 @@ const FixedIncomeComparator: React.FC = () => {
             finalNetAnnualRate: netRate,
           };
         }
-      } else { 
+      } else if (investmentType === 'post') { 
         if (cdiRateActual <= 0 && rateInput !== 0) { 
           alert("O Valor Atual do CDI deve ser maior que zero para cálculos pós-fixados significativos.");
           setIsLoading(false); return;
@@ -141,27 +189,86 @@ const FixedIncomeComparator: React.FC = () => {
             equivalentNetCdiPercentage: netCdiPercentageDesired,
           };
         }
+      } else if (investmentType === 'ipca') {
+        const ipcaExpectedDecimal = ipcaRateActual / 100;
+        const realRateInput = rateInput;
+        let finalNetNominalRateForEquivCalc = 0;
+        
+        if (conversionDirection === 'grossToNet') {
+            const realRateDecimal = realRateInput / 100;
+            const nominalGrossAnnualRateDecimal = (1 + realRateDecimal) * (1 + ipcaExpectedDecimal) - 1;
+            const nominalGrossAnnualRatePercent = nominalGrossAnnualRateDecimal * 100;
+            const netRate = calculateNetAnnualYield(nominalGrossAnnualRatePercent, termDays);
+            finalNetNominalRateForEquivCalc = netRate;
+            calculatedResult = {
+                conversionDirection, investmentType, termDays, irRateAppliedPercent,
+                inputRateDirect: realRateInput, 
+                inputIpcaRate: ipcaRateActual,
+                inputRealRate: realRateInput,
+                finalGrossAnnualRate: nominalGrossAnnualRatePercent,
+                finalNetAnnualRate: netRate,
+            };
+        } else { 
+            const desiredNetRatePercent = realRateInput;
+            finalNetNominalRateForEquivCalc = desiredNetRatePercent;
+            const requiredNominalGrossAnnualRatePercent = calculateGrossAnnualYieldFromNet(desiredNetRatePercent, termDays);
+            const requiredNominalGrossAnnualRateDecimal = requiredNominalGrossAnnualRatePercent / 100;
+            
+            let calculatedRealRateDecimal;
+            const ipcaFactorForCalc = 1 + ipcaExpectedDecimal;
+            if (ipcaFactorForCalc === 0) { 
+                calculatedRealRateDecimal = requiredNominalGrossAnnualRateDecimal;
+            } else {
+                calculatedRealRateDecimal = ((1 + requiredNominalGrossAnnualRateDecimal) / ipcaFactorForCalc) - 1;
+            }
+            const calculatedRealRatePercent = calculatedRealRateDecimal * 100;
+
+            calculatedResult = {
+                conversionDirection, investmentType, termDays, irRateAppliedPercent,
+                inputRateDirect: desiredNetRatePercent, 
+                inputIpcaRate: ipcaRateActual,
+                calculatedRealRate: calculatedRealRatePercent, 
+                finalGrossAnnualRate: requiredNominalGrossAnnualRatePercent,
+                finalNetAnnualRate: desiredNetRatePercent,
+            };
+        }
+
+        // Calculate equivalent exempt real rate for IPCA+
+        let equivalentExemptRealRate: number | undefined = undefined;
+        const netNominalRateDecimal = finalNetNominalRateForEquivCalc / 100;
+        const ipcaFactor = 1 + (ipcaRateActual / 100);
+        if (ipcaFactor > 0) { // Avoid division by zero or meaningless results if IPCA is -100% or less
+            const equivalentExemptRealRateDecimal = ((1 + netNominalRateDecimal) / ipcaFactor) - 1;
+            equivalentExemptRealRate = equivalentExemptRealRateDecimal * 100;
+        }
+        if (calculatedResult) {
+          calculatedResult.equivalentExemptRealRate_Ipca = equivalentExemptRealRate;
+        }
       }
       setResult(calculatedResult);
       setIsLoading(false);
     }, 1000);
 
-  }, [investmentType, conversionDirection, inputRateValue, currentCdiRatePost, termValue, termUnit]);
+  }, [investmentType, conversionDirection, inputRateValue, currentCdiRatePost, inputIpcaRate, termValue, termUnit]);
 
   const getRateInputLabel = () => {
     if (investmentType === 'pre') {
       return conversionDirection === 'grossToNet' ? "Taxa Bruta Anual Pré-fixada (%)" : "Taxa Líquida Anual Desejada (%)";
-    } else { 
+    } else if (investmentType === 'post'){ 
       return conversionDirection === 'grossToNet' ? "% do CDI (Bruto)" : "% do CDI Líquido Desejado";
+    } else if (investmentType === 'ipca') {
+      return conversionDirection === 'grossToNet' ? "Taxa Real Anual Pré-fixada (%)" : "Taxa Líquida Anual Desejada (%)";
     }
+    return "Taxa (%)";
   };
   
   const getExplanatoryText = () => {
     if (!result) return "";
     const { 
-        finalGrossAnnualRate, finalNetAnnualRate, irRateAppliedPercent, termDays, 
+        finalGrossAnnualRate, finalNetAnnualRate, irRateAppliedPercent, 
         inputRateDirect, currentCdiRateForPost, 
-        equivalentGrossCdiPercentage, equivalentNetCdiPercentage 
+        equivalentGrossCdiPercentage, equivalentNetCdiPercentage,
+        inputIpcaRate, inputRealRate, calculatedRealRate, equivalentExemptRealRate_Ipca
     } = result;
 
     const termDescription = termUnit === 'years' ? `${termValue} ano(s)` : `${result.termDays} dia(s)`;
@@ -173,7 +280,7 @@ const FixedIncomeComparator: React.FC = () => {
         } else { 
             return `Para obter uma rentabilidade líquida de ${formatNumberForDisplay(inputRateDirect, {minimumFractionDigits:2, maximumFractionDigits:2})}% a.a. em um investimento pré-fixado com prazo de ${termDescription} (IR de ${irText}), seria necessária uma taxa bruta de ${formatNumberForDisplay(finalGrossAnnualRate, {minimumFractionDigits:2, maximumFractionDigits:2})}% a.a.`;
         }
-    } else { 
+    } else if (result.investmentType === 'post') { 
         const cdiRateText = formatNumberForDisplay(currentCdiRateForPost, {minimumFractionDigits:2, maximumFractionDigits:2});
         if (result.conversionDirection === 'grossToNet') {
             const inputGrossCdiText = formatNumberForDisplay(inputRateDirect, {minimumFractionDigits:0, maximumFractionDigits:2});
@@ -184,7 +291,25 @@ const FixedIncomeComparator: React.FC = () => {
             const equivGrossCdiText = formatNumberForDisplay(equivalentGrossCdiPercentage, {minimumFractionDigits:2, maximumFractionDigits:2});
              return `Para obter uma rentabilidade líquida de ${inputNetCdiText}% do CDI, com CDI de ${cdiRateText}% a.a. (equivalente a ${formatNumberForDisplay(finalNetAnnualRate, {minimumFractionDigits:2, maximumFractionDigits:2})}% a.a. líquido), prazo de ${termDescription} (IR de ${irText}), seria necessário um investimento que renda ${equivGrossCdiText}% do CDI bruto (ou ${formatNumberForDisplay(finalGrossAnnualRate, {minimumFractionDigits:2, maximumFractionDigits:2})}% a.a. bruto).`;
         }
+    } else if (result.investmentType === 'ipca') {
+        const ipcaText = formatNumberForDisplay(inputIpcaRate, {minimumFractionDigits:2, maximumFractionDigits:2});
+        const equivExemptRealText = equivalentExemptRealRate_Ipca !== undefined ? formatNumberForDisplay(equivalentExemptRealRate_Ipca, {minimumFractionDigits:2, maximumFractionDigits:2}) : "N/A";
+        let baseText = "";
+
+        if (result.conversionDirection === 'grossToNet') {
+            const realRateText = formatNumberForDisplay(inputRealRate, {minimumFractionDigits:2, maximumFractionDigits:2});
+            baseText = `Um investimento IPCA+ com taxa real de ${realRateText}% a.a. + IPCA de ${ipcaText}% a.a. (totalizando ${formatNumberForDisplay(finalGrossAnnualRate, {minimumFractionDigits:2, maximumFractionDigits:2})}% a.a. bruto), prazo de ${termDescription} (IR de ${irText} sobre o total), tem rentabilidade líquida de ${formatNumberForDisplay(finalNetAnnualRate, {minimumFractionDigits:2, maximumFractionDigits:2})}% a.a.`;
+        } else { // netToGross
+            const desiredNetText = formatNumberForDisplay(inputRateDirect, {minimumFractionDigits:2, maximumFractionDigits:2});
+            const calcRealRateText = formatNumberForDisplay(calculatedRealRate, {minimumFractionDigits:2, maximumFractionDigits:2});
+            baseText = `Para obter uma rentabilidade líquida de ${desiredNetText}% a.a. em um investimento IPCA+, com IPCA de ${ipcaText}% a.a. e prazo de ${termDescription} (IR de ${irText} sobre o total), seria necessária uma taxa real de ${calcRealRateText}% a.a. (resultando em ${formatNumberForDisplay(finalGrossAnnualRate, {minimumFractionDigits:2, maximumFractionDigits:2})}% a.a. bruto).`;
+        }
+        if (equivalentExemptRealRate_Ipca !== undefined) {
+            baseText += ` Isso seria equivalente a um título IPCA + ${equivExemptRealText}% isento de IR.`;
+        }
+        return baseText;
     }
+    return "";
 };
   
   const commonInputProps = {
@@ -206,6 +331,7 @@ const FixedIncomeComparator: React.FC = () => {
           <div className="flex space-x-2">
             <Button variant={investmentType === 'pre' ? 'primary' : 'secondary'} onClick={() => setInvestmentType('pre')} disabled={isLoading}>Pré-fixado</Button>
             <Button variant={investmentType === 'post' ? 'primary' : 'secondary'} onClick={() => setInvestmentType('post')} disabled={isLoading}>Pós-fixado (% CDI)</Button>
+            <Button variant={investmentType === 'ipca' ? 'primary' : 'secondary'} onClick={() => setInvestmentType('ipca')} disabled={isLoading}>IPCA+</Button>
           </div>
         </div>
 
@@ -223,9 +349,9 @@ const FixedIncomeComparator: React.FC = () => {
             name="inputRateValue"
             value={inputRateValue}
             onChange={handleFormattedRateChange}
-            min={investmentType === 'post' && conversionDirection === 'grossToNet' ? 0 : (investmentType === 'pre' && conversionDirection === 'grossToNet' ? -100 : undefined) } 
+            min={investmentType === 'post' && conversionDirection === 'grossToNet' ? 0 : (investmentType === 'pre' && conversionDirection === 'grossToNet' ? -100 : (investmentType === 'ipca' && conversionDirection === 'grossToNet' ? undefined : undefined) ) } 
             icon={<span className="text-slate-400 dark:text-slate-500">%</span>}
-            displayOptions={investmentType === 'pre' ? 
+            displayOptions={investmentType === 'pre' || investmentType === 'ipca' ? 
               { minimumFractionDigits: 2, maximumFractionDigits: 4 } : 
               { minimumFractionDigits: 0, maximumFractionDigits: 2 } 
             }
@@ -243,6 +369,27 @@ const FixedIncomeComparator: React.FC = () => {
               icon={<span className="text-slate-400 dark:text-slate-500">%</span>}
               displayOptions={{ minimumFractionDigits: 2, maximumFractionDigits: 2 }}
               {...commonInputProps}
+            />
+        )}
+        {investmentType === 'ipca' && (
+            <FormattedNumericInput
+              label={<>IPCA Esperado Anual (%) <InfoTooltip text="Inflação anual (IPCA) esperada para o período do título. O valor é buscado automaticamente mas pode ser editado." /></>}
+              id="inputIpcaRate"
+              name="inputIpcaRate"
+              value={inputIpcaRate}
+              onChange={handleFormattedRateChange}
+              icon={
+                <>
+                  <span className="text-slate-400 dark:text-slate-500">%</span>
+                  <AutoFetchedMarker 
+                    isFetched={ipcaAutoFetched && !isFetchingIpca && !ipcaFetchError} 
+                    tooltipText={ipcaFetchError ? ipcaFetchError : "IPCA mais recente buscado automaticamente."}
+                    className="ml-0.5" 
+                  />
+                </>
+              }
+              displayOptions={{ minimumFractionDigits: 2, maximumFractionDigits: 2 }}
+              disabled={isLoading || isFetchingIpca}
             />
         )}
         
@@ -267,14 +414,14 @@ const FixedIncomeComparator: React.FC = () => {
             />
         </div>
 
-        <Button onClick={handleCalculate} variant="primary" size="lg" className="w-full" disabled={isLoading}>
-          {isLoading ? (
+        <Button onClick={handleCalculate} variant="primary" size="lg" className="w-full" disabled={isLoading || isFetchingIpca}>
+          {isLoading || isFetchingIpca ? (
             <>
               <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
-              Calculando...
+              {isFetchingIpca ? 'Buscando IPCA...' : 'Calculando...'}
             </>
           ) : (
             'Calcular Equivalência'
@@ -300,10 +447,11 @@ const FixedIncomeComparator: React.FC = () => {
             </h3>
             
             <div className="text-center mb-3 sm:mb-4">
-               {result.conversionDirection === 'grossToNet' && (
+               {result.conversionDirection === 'grossToNet' && result.investmentType !== 'ipca' && (
                  <>
                     <span className="block text-xs text-slate-600 dark:text-slate-400 -mb-1">
-                        {result.investmentType === 'pre' ? 'Taxa Bruta Informada:' : '% CDI Bruto Informado:'} {formatNumberForDisplay(result.inputRateDirect, {minimumFractionDigits: result.investmentType === 'pre' ? 2:0, maximumFractionDigits: result.investmentType === 'pre' ? 4:2})}%
+                        {result.investmentType === 'pre' ? 'Taxa Bruta Informada:' : 
+                         result.investmentType === 'post' ? '% CDI Bruto Informado:' : ''} {formatNumberForDisplay(result.inputRateDirect, {minimumFractionDigits: (result.investmentType === 'pre') ? 2:0, maximumFractionDigits: (result.investmentType === 'pre') ? 4:2})}%
                     </span>
                     <span className="block text-2xl sm:text-3xl font-bold text-green-600 dark:text-green-400">
                         {formatNumberForDisplay(result.finalNetAnnualRate, {minimumFractionDigits: 2, maximumFractionDigits: 2})}% a.a.
@@ -313,10 +461,11 @@ const FixedIncomeComparator: React.FC = () => {
                     </span>
                  </>
                )}
-               {result.conversionDirection === 'netToGross' && (
+               {result.conversionDirection === 'netToGross' && result.investmentType !== 'ipca' && (
                  <>
                     <span className="block text-xs text-slate-600 dark:text-slate-400 -mb-1">
-                        {result.investmentType === 'pre' ? 'Taxa Líquida Desejada:' : '% CDI Líquido Desejado:'} {formatNumberForDisplay(result.inputRateDirect, {minimumFractionDigits: result.investmentType === 'pre' ? 2:0, maximumFractionDigits: result.investmentType === 'pre' ? 4:2})}%
+                        {result.investmentType === 'pre' ? 'Taxa Líquida Desejada:' : 
+                         result.investmentType === 'post' ? '% CDI Líquido Desejado:' : ''} {formatNumberForDisplay(result.inputRateDirect, {minimumFractionDigits: (result.investmentType === 'pre') ? 2:0, maximumFractionDigits: (result.investmentType === 'pre') ? 4:2})}%
                     </span>
                     <span className="block text-2xl sm:text-3xl font-bold text-blue-600 dark:text-blue-400">
                         {formatNumberForDisplay(result.finalGrossAnnualRate, {minimumFractionDigits: 2, maximumFractionDigits: 2})}% a.a.
@@ -340,6 +489,35 @@ const FixedIncomeComparator: React.FC = () => {
                 </span>
               </div>
             )}
+
+            {result.investmentType === 'ipca' && result.equivalentExemptRealRate_Ipca !== undefined && (
+              <div className="text-center mb-4 sm:mb-5">
+                 {result.conversionDirection === 'grossToNet' && (
+                    <div className="mb-3">
+                        <span className="block text-xs text-slate-600 dark:text-slate-400 -mb-0.5">Taxa Real Informada: {formatNumberForDisplay(result.inputRealRate, {minimumFractionDigits:2, maximumFractionDigits:2})}% + IPCA {formatNumberForDisplay(result.inputIpcaRate, {minimumFractionDigits:2, maximumFractionDigits:2})}%</span>
+                        <span className="block text-2xl sm:text-3xl font-bold text-green-600 dark:text-green-400">
+                            {formatNumberForDisplay(result.finalNetAnnualRate, {minimumFractionDigits: 2, maximumFractionDigits: 2})}% a.a.
+                        </span>
+                        <span className="block text-xs text-slate-600 dark:text-slate-400 mt-0.5">Taxa Líquida Efetiva (Após IR)</span>
+                    </div>
+                 )}
+                 {result.conversionDirection === 'netToGross' && (
+                    <div className="mb-3">
+                        <span className="block text-xs text-slate-600 dark:text-slate-400 -mb-0.5">Taxa Líquida Desejada: {formatNumberForDisplay(result.inputRateDirect, {minimumFractionDigits:2, maximumFractionDigits:2})}% (Com IPCA de {formatNumberForDisplay(result.inputIpcaRate, {minimumFractionDigits:2, maximumFractionDigits:2})}%)</span>
+                        <span className="block text-2xl sm:text-3xl font-bold text-blue-600 dark:text-blue-400">
+                            IPCA + {formatNumberForDisplay(result.calculatedRealRate, {minimumFractionDigits: 2, maximumFractionDigits: 2})}% a.a.
+                        </span>
+                        <span className="block text-xs text-slate-600 dark:text-slate-400 mt-0.5">Taxa Real Bruta Necessária (Pré-IR)</span>
+                    </div>
+                 )}
+                <span className="block text-xl sm:text-2xl font-bold text-teal-500 dark:text-teal-400">
+                  IPCA + {formatNumberForDisplay(result.equivalentExemptRealRate_Ipca, {minimumFractionDigits: 2, maximumFractionDigits: 2})}%
+                </span>
+                <span className="block text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+                  Taxa Real Equivalente (Isenta de IR)
+                </span>
+              </div>
+            )}
             
             <hr className="my-3 sm:my-4 border-slate-300 dark:border-slate-600/80" />
 
@@ -351,13 +529,13 @@ const FixedIncomeComparator: React.FC = () => {
               
               <div className="flex justify-between items-center">
                 <span className="text-slate-700 dark:text-blue-400">
-                    {result.investmentType === 'pre' ? 
-                        (result.conversionDirection === 'grossToNet' ? 'Taxa Bruta Informada:' : 'Taxa Líquida Desejada:') :
-                        (result.conversionDirection === 'grossToNet' ? '% CDI Bruto Informado:' : '% CDI Líquido Desejado:')
+                    {result.investmentType === 'pre' ? (result.conversionDirection === 'grossToNet' ? 'Taxa Bruta Informada:' : 'Taxa Líquida Desejada:') :
+                     result.investmentType === 'post' ? (result.conversionDirection === 'grossToNet' ? '% CDI Bruto Informado:' : '% CDI Líquido Desejado:') :
+                     result.investmentType === 'ipca' ? (result.conversionDirection === 'grossToNet' ? 'Taxa Real Informada:' : 'Taxa Líquida Desejada:') : ''
                     }
                 </span>
                 <span className="font-medium text-slate-800 dark:text-slate-200">
-                    {formatNumberForDisplay(result.inputRateDirect, {minimumFractionDigits: result.investmentType === 'pre' ? 2:0, maximumFractionDigits: result.investmentType === 'pre' ? 4:2})}%
+                    {formatNumberForDisplay(result.inputRateDirect, {minimumFractionDigits: (result.investmentType === 'pre' || result.investmentType === 'ipca') ? 2:0, maximumFractionDigits: (result.investmentType === 'pre' || result.investmentType === 'ipca') ? 4:2})}%
                 </span>
               </div>
 
@@ -367,10 +545,17 @@ const FixedIncomeComparator: React.FC = () => {
                     <span className="font-medium text-slate-800 dark:text-slate-200">{formatNumberForDisplay(result.currentCdiRateForPost, {minimumFractionDigits: 2, maximumFractionDigits: 2})}% a.a.</span>
                   </div>
               )}
-              {result.investmentType === 'post' && (
+              {result.investmentType === 'ipca' && result.inputIpcaRate !== undefined && (
+                 <div className="flex justify-between items-center">
+                    <span className="text-slate-700 dark:text-blue-400">IPCA Esperado Informado:</span>
+                    <span className="font-medium text-slate-800 dark:text-slate-200">{formatNumberForDisplay(result.inputIpcaRate, {minimumFractionDigits: 2, maximumFractionDigits: 2})}% a.a.</span>
+                  </div>
+              )}
+
+              {(result.investmentType === 'post' || result.investmentType === 'ipca') && (
                 <>
                   <div className="flex justify-between items-center">
-                    <span className="text-slate-700 dark:text-blue-400">Taxa Bruta Anual Efetiva:</span>
+                    <span className="text-slate-700 dark:text-blue-400">Taxa Bruta Anual Efetiva{result.investmentType === 'ipca' ? ' (Nominal)' : ''}:</span>
                     <span className="font-medium text-slate-800 dark:text-slate-200">{formatNumberForDisplay(result.finalGrossAnnualRate, {minimumFractionDigits: 2, maximumFractionDigits: 2})}% a.a.</span>
                   </div>
                   <div className="flex justify-between items-center">
@@ -391,6 +576,7 @@ const FixedIncomeComparator: React.FC = () => {
             <p className="mt-4 text-xs text-slate-500 dark:text-slate-500 text-center border-t border-slate-300 dark:border-slate-600/80 pt-3">
               <strong>Atenção:</strong> O cálculo da taxa líquida/bruta é uma estimativa simplificada (Taxa Líquida = Taxa Bruta Anual × (1 - Alíquota IR) e vice-versa) 
               e pode não refletir com exatidão o efeito de capitalização para prazos não anuais como em calculadoras financeiras detalhadas.
+              Para títulos IPCA+, o IR incide sobre a rentabilidade nominal total (Taxa Real + IPCA).
             </p>
           </div>
         )}

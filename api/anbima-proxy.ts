@@ -100,8 +100,8 @@ export default async function handler(
   }
 
   // 2. Fetch Curve Data using the obtained Access Token
-  // A URL é construída com 'data' como query parameter. 'curveType' é ignorado para esta API.
-  const anbimaApiUrl = `${ANBIMA_API_BASE_URL}?data=${date}`;
+  // A URL é construída com 'data_referencia' como query parameter. 'curveType' é ignorado para esta API.
+  const anbimaApiUrl = `${ANBIMA_API_BASE_URL}?data_referencia=${date}`;
 
   try {
     const fetchResponse = await fetch(anbimaApiUrl, {
