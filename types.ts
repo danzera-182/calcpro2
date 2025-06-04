@@ -75,7 +75,7 @@ export interface RetirementAnalysisResults {
   canMeetGoal: boolean;
   swrUsed: number; 
   achievableMonthlyIncomeWithProjectedCapital?: number; 
-  projectedCapitalAt72?: number; // For inheritance
+  // projectedCapitalAt72?: number; // REMOVED - Inheritance module discontinued
   perpetualMonthlyWithdrawalFutureValue?: number; // At retirement age (SWR based)
   perpetualMonthlyWithdrawalTodayValue?: number; // PV of the SWR based if inflation-adjusted
   interestOnlyMonthlyWithdrawalFutureValue?: number; // At retirement age (Interest-only based)
@@ -267,13 +267,19 @@ export interface FetchedEconomicIndicators {
   internationalReservesReferenceDate?: string; 
   goldReservesSGS3552MillionsUSD?: number; 
   goldReservesSGS3552MillionsUSDReferenceDate?: string; 
-  gdpProjection?: number;
+  
+  gdpProjection?: number; // Focus projection, will be kept but not primary for card.
   gdpProjectionSourceType?: 'projection_focus';
   gdpProjectionReferenceDate?: string;
+
+  gdpAccumulated12mSGS4382?: number; // New: For PIB Acum. 12M card
+  gdpAccumulated12mSGS4382ReferenceDate?: string; // New
+
   grossGeneralGovernmentDebtToGdp?: number; 
   grossGeneralGovernmentDebtToGdpReferenceDate?: string; 
   m2BalanceSGS27842?: number; 
   m2BalanceSGS27842ReferenceDate?: string; 
+  
   lastUpdated?: string;
   errors?: string[];
 }

@@ -3,7 +3,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { InputFormData, ScenarioData, AppView, BtcPriceInfo, UsdtPriceInfo, ArticleForSummary } from './types'; 
 import { DEFAULT_INPUT_VALUES } from './constants';
 import { calculateProjection } from './utils/calculations';
-import InputForm from './components/InputForm';
+import { InputForm } from './components/InputForm.tsx';
 import ResultsDisplay from './components/ResultsDisplay'; 
 import ThemeToggle from './components/ThemeToggle';
 import { Card } from './components/ui/Card';
@@ -20,7 +20,7 @@ import RSSStoriesFeed from './components/RSSStoriesFeed';
 import NewsSummaryDetailView from './components/NewsSummaryDetailView';
 import EconomicCalendarWidget from './components/EconomicCalendarWidget';
 import AnbimaDataViewer from './components/AnbimaDataViewer';
-import PropertyComparator from './components/PropertyComparator'; // New Import
+import PropertyComparator from './components/PropertyComparator'; 
 import { fetchLatestBitcoinPrice, fetchLatestUsdtPrice } from './utils/economicIndicatorsAPI';
 import { formatCurrency, formatNumberForDisplay, formatNumber } from './utils/formatters';
 
@@ -29,7 +29,7 @@ const viewToPathMap: Record<AppView, string> = {
   compoundInterest: '/compound-interest',
   fixedIncomeComparator: '/fixed-income-comparator',
   comprehensiveComparator: '/comprehensive-comparator',
-  rentVsBuyCalculator: '/rent-vs-buy', // New Path
+  rentVsBuyCalculator: '/rent-vs-buy', 
   macroEconomicPanel: '/macro-economic-panel',
   macroEconomicTerminal: '/macro-economic-terminal',
   bitcoinChartDetail: '/bitcoin',
@@ -256,40 +256,8 @@ const App: React.FC = () => {
     }
   }, [activeView, bitcoinPriceInfo, isLoadingBitcoinPrice, bitcoinPriceError, usdtPriceInfo, isLoadingUsdtPrice, usdtPriceError]);
 
-
-  const getSubtitle = (): string | null => { 
-    switch (activeView) {
-      case 'compoundInterest':
-        return "Simule o futuro dos seus investimentos com projeções detalhadas e simulações avançadas.";
-      case 'fixedIncomeComparator':
-        return "Analise a equivalência de rentabilidade entre investimentos de renda fixa tributados e isentos.";
-      case 'comprehensiveComparator':
-        return "Compare diferentes aplicações de renda fixa com parâmetros detalhados.";
-      case 'rentVsBuyCalculator': // New Subtitle
-        return "Analise se vale mais a pena alugar ou financiar um imóvel.";
-      case 'macroEconomicPanel':
-        return "Acompanhe os principais indicadores macroeconômicos do Brasil.";
-      case 'macroEconomicTerminal':
-        return "Analise e compare indicadores macroeconômicos em um terminal gráfico interativo.";
-      case 'bitcoinChartDetail':
-        return "Análise detalhada da cotação e informações do Bitcoin.";
-      case 'usdtChartDetail':
-        return "Análise detalhada da cotação e informações do USDT (Tether).";
-      case 'rssStoriesFeed':
-        return "Acompanhe notícias do mercado em formato de stories.";
-      case 'newsSummaryDetail':
-        return articleForSummary ? `Resumo IA: ${articleForSummary.title.substring(0,30)}...` : "Resumo de Notícia com IA";
-      case 'economicCalendarWidget':
-        return "Eventos econômicos globais em tempo real (TradingView)"; 
-      case 'anbimaDataViewer':
-        return "Explore dados da Anbima como a curva de juros ETTJ.";
-      case 'experimentalFeatures':
-        return "Ferramentas em fase de teste e desenvolvimento.";
-      case 'selector':
-      default:
-        return null;
-    }
-  };
+  // REMOVED getSubtitle function as it's no longer used for pageSubtitle.
+  // const getSubtitle = (): string | null => { ... };
   
   const formatUnixTimestampForDisplay = (unixTimestamp?: number): string => {
     if (!unixTimestamp) return 'N/D';
@@ -582,7 +550,7 @@ const App: React.FC = () => {
             <ComprehensiveComparator /> 
           </>
         );
-       case 'rentVsBuyCalculator': // New Case
+       case 'rentVsBuyCalculator': 
         return (
           <>
             <Button onClick={() => setActiveView('selector')} variant="secondary" size="md" className="mb-6" aria-label="Voltar para seleção de ferramentas">
@@ -882,13 +850,13 @@ const App: React.FC = () => {
     }
   };
   
-  const pageSubtitle = getSubtitle();
+  // const pageSubtitle = getSubtitle(); // Subtitle logic is removed.
 
   return (
     <div className="min-h-screen">
       <header className="fixed top-0 left-0 right-0 z-50 bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg shadow-premium">
         <div className="container mx-auto px-4 sm:px-6 pt-4 pb-2 relative">
-          <div className="flex justify-center items-center">
+          <div className="flex justify-center items-center"> {/* Centered logo */}
             <h1 className="text-2xl sm:text-3xl font-bold">
               <svg 
                 viewBox="0 0 165 35" 
@@ -920,11 +888,7 @@ const App: React.FC = () => {
               </svg>
             </h1>
           </div>
-           {pageSubtitle && (
-            <div className="absolute left-4 sm:left-6 top-1/2 -translate-y-1/2 text-xs sm:text-sm text-slate-600 dark:text-slate-400 font-medium hidden md:block">
-                {pageSubtitle}
-            </div>
-           )}
+          {/* Subtitle div block removed from here */}
           <div className="absolute right-4 sm:right-6 top-1/2 -translate-y-1/2">
             <ThemeToggle />
           </div>

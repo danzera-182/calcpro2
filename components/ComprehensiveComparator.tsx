@@ -1,6 +1,6 @@
 
 import React, { useState, useCallback, useMemo, useEffect, FC } from 'react';
-import { ComprehensiveInputs, InvestmentPeriodUnit, InvestmentCalculationResult } from '../types';
+import { ComprehensiveInputs, InvestmentPeriodUnit, InvestmentCalculationResult, FetchedEconomicIndicators } from '../types';
 import { DEFAULT_COMPREHENSIVE_INPUTS } from '../constants';
 import { Card } from './ui/Card';
 import Input from './ui/Input'; 
@@ -9,7 +9,7 @@ import Button from './ui/Button';
 import { getIrRate } from '../utils/fixedIncomeCalculations'; 
 import { formatCurrency, formatNumber, formatNumberForDisplay } from '../utils/formatters';
 import FormattedNumericInput from './ui/FormattedNumericInput'; 
-import { fetchEconomicIndicators, FetchedEconomicIndicators } from '../utils/economicIndicatorsAPI'; 
+import { fetchEconomicIndicators } from '../utils/economicIndicatorsAPI'; 
 import InfoTooltip from './ui/InfoTooltip';
 
 
@@ -548,4 +548,3 @@ const ComprehensiveComparator: React.FC = () => {
   );
 };
 export default ComprehensiveComparator;
-

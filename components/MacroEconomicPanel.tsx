@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { fetchEconomicIndicators, FetchedEconomicIndicators, fetchLatestUsdBrlRate, fetchHistoricalSgsData, fetchHistoricalPtAXData } from '../utils/economicIndicatorsAPI';
-import { UsdBrlRateInfo, IndicatorModalData, HistoricalDataPoint, AppView } from '../types';
+import { fetchEconomicIndicators, fetchLatestUsdBrlRate, fetchHistoricalSgsData, fetchHistoricalPtAXData } from '../utils/economicIndicatorsAPI';
+import { FetchedEconomicIndicators, UsdBrlRateInfo, IndicatorModalData, HistoricalDataPoint, AppView } from '../types';
 import IndicatorCard from './ui/IndicatorCard';
 import IndicatorDetailsModal from './IndicatorDetailsModal'; 
 import { Card } from './ui/Card';
@@ -34,6 +34,12 @@ const GoldBarIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
 const BanknotesIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5" {...props}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h6m3-3.75l-3.75-3.75M14.25 15l-3.75-3.75M3.75 7.5h16.5v9.75A2.25 2.25 0 0 1 18 19.5H6a2.25 2.25 0 0 1-2.25-2.25V7.5Z" />
+  </svg>
+);
+
+const ChartBarIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" />
   </svg>
 );
 
@@ -125,6 +131,7 @@ const MacroEconomicPanel: React.FC<MacroEconomicPanelProps> = ({ setActiveView }
               "Dívida Líquida Setor Público (% PIB)": "Dív. Líquida (% PIB)",
               "Dívida Bruta Gov. Geral": "Dív. Bruta Gov. Ger.",
               "M2 (Base Monetária)": "M2",
+              "PIB (Acum. 12M)": "PIB (12M)",
             };
             errorsCombined = [...errorsCombined, ...fetchedEcoData.errors.map(e => errorKeyMap[e] || `${e}`)];
         }
@@ -210,20 +217,20 @@ const MacroEconomicPanel: React.FC<MacroEconomicPanelProps> = ({ setActiveView }
     if (type === 'dayMonthYear' && refDate.length === 10 && refDate.split('/').length === 3) { 
         return `Ref: ${refDate}`;
     }
+    // Fallback for MM/YYYY if type is dayMonthYear but matches MM/YYYY format
     if (refDate.length === 7 && refDate.includes('/')) { 
         return `Ref: ${refDate}`;
     }
-    return `Ref: ${refDate}`;
+    // Fallback for YYYY if only year is provided
+    if (refDate.length === 4 && !isNaN(parseInt(refDate))) {
+        return `Ref: ${refDate}`;
+    }
+    return `Ref: ${refDate}`; // Return as is if no specific format matches
   };
   
   const formatIpcaReference = (sourceType?: 'projection' | 'accumulated12m', refDate?: string): string | undefined => {
     if (!sourceType || !refDate) return undefined;
     return sourceType === 'projection' ? `Projeção Focus para ${refDate}` : `Acumulado 12m até ${refDate}`;
-  };
-
-  const formatGdpReference = (refDate?: string): string | undefined => {
-    if (!refDate) return undefined;
-    return `Projeção Focus para ${refDate}`;
   };
   
   const formatDollarDateTime = (isoDateTimeString?: string): string | undefined => {
@@ -293,6 +300,18 @@ const MacroEconomicPanel: React.FC<MacroEconomicPanelProps> = ({ setActiveView }
         isPercentage: true, 
         historicalSeriesName: "IPCA (Variação Mensal %)", 
         historicalYAxisLabel: "Variação %"
+      },
+      {
+        title: "PIB (Acum. 12 Meses)", sgsCode: 4382,
+        currentValue: ecoData?.gdpAccumulated12mSGS4382,
+        valuePrecision: 0,
+        displayDivisor: 1000, 
+        displayPrefix: "R$ ",
+        displaySuffixOverride: " bi",
+        referenceText: formatReferenceDate(ecoData?.gdpAccumulated12mSGS4382ReferenceDate, 'monthYear'), 
+        sourceText: "BCB-SGS 4382",
+        description: "Produto Interno Bruto (PIB) acumulado nos últimos 12 meses, em valores correntes. Para explorar o PIB Mensal (SGS 4380) e Acumulado no Ano (SGS 4381), utilize o Terminal Financeiro Interativo. Valores em R$ milhões (histórico) e R$ bilhões (card).",
+        isPercentage: false, historicalSeriesName: "PIB Acum. 12M (R$ Milhões)", historicalYAxisLabel: "R$ Milhões"
       },
       {
         title: "IGP-M (Inflação)", 
@@ -391,19 +410,6 @@ const MacroEconomicPanel: React.FC<MacroEconomicPanelProps> = ({ setActiveView }
         historicalSeriesName: "Ouro (Reservas Milhões USD)", 
         historicalYAxisLabel: "Milhões USD"
       },
-      {
-        title: "PIB", 
-        sgsCode: 'FOCUS_ONLY', 
-        currentValue: getValidatedAndPotentiallyCorrectedPercentage(ecoData?.gdpProjection, "PIB", true), 
-        valueSuffix: "%", 
-        valuePrecision: 2,
-        referenceText: formatGdpReference(ecoData?.gdpProjectionReferenceDate), 
-        sourceText: "BCB-Focus (Projeção)", 
-        description: "Projeção do Produto Interno Bruto (PIB) com base nas expectativas de mercado (Focus - BCB). Sua variação percentual indica o crescimento (ou retração) esperado da economia.",
-        isPercentage: true, 
-        historicalSeriesName: undefined, 
-        historicalYAxisLabel: undefined  
-      },
     ];
   }, [ecoData, usdRateInfo]);
 
@@ -428,12 +434,13 @@ const MacroEconomicPanel: React.FC<MacroEconomicPanelProps> = ({ setActiveView }
     "Dívida Bruta Gov. Geral (% PIB)": <PercentIcon />,
     "IBC-Br (Atividade Econ.)": <InflationIcon />, "Reservas Internacionais": <DollarIcon />,
     "Reservas Internacionais - Ouro": <GoldBarIcon />, 
-    "PIB": <InflationIcon />,
+    "PIB (Acum. 12 Meses)": <ChartBarIcon />,
   };
 
   const getCardSpecificError = (indicator: IndicatorModalData): string | null => {
     let cardError: string | null = null;
-    if (ecoData?.errors?.includes(indicator.title) || (indicator.title === "M2 (Base Monetária)" && ecoData?.errors?.includes("M2"))) {
+    const titleToCheck = indicator.title.replace(" (Focus)", "").replace(" (Acum. 12M)", ""); // Normalize title for error checking
+    if (ecoData?.errors?.includes(titleToCheck) || (indicator.title === "M2 (Base Monetária)" && ecoData?.errors?.includes("M2"))) {
         cardError = "Erro ao buscar";
     }
 
@@ -443,9 +450,9 @@ const MacroEconomicPanel: React.FC<MacroEconomicPanelProps> = ({ setActiveView }
           cardError = "Cotação Indisponível";
         }
     }
-
-    if (!cardError && indicator.title === "PIB" && (ecoData?.gdpProjection === null || ecoData?.gdpProjection === undefined) && !isLoading && indicator.sgsCode === 'FOCUS_ONLY') {
-        cardError = "Projeção Indisponível";
+    
+    if (!cardError && indicator.title === "PIB (Acum. 12 Meses)" && (ecoData?.gdpAccumulated12mSGS4382 === null || ecoData?.gdpAccumulated12mSGS4382 === undefined) && !isLoading && indicator.sgsCode === 4382) {
+        cardError = "Valor Indisponível";
     }
     return cardError;
   };

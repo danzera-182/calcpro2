@@ -131,9 +131,9 @@ const IndicatorDetailsModal: React.FC<IndicatorDetailsModalProps> = ({ isOpen, o
       } catch (e: any) {
         setHistoricalErrorPrimary(e.message || "Erro ao buscar dados históricos primários.");
       }
-    } else if (primarySgsCodeToFetch === 'FOCUS_ONLY') {
+    } else if (primarySgsCodeToFetch === 'FOCUS_ONLY' && indicator.title !== "PIB (Acum. 12 Meses)") { // Allow PIB 12M (SGS 4382) to pass
          setHistoricalErrorPrimary("Não há série histórica para este indicador (apenas valor atual/projeção).");
-    } else {
+    } else if (!primarySgsCodeToFetch && indicator.title !== "PIB (Acum. 12 Meses)") {
         setHistoricalErrorPrimary("Código SGS primário não definido para este indicador.");
     }
     setIsLoadingHistoricalPrimary(false);
@@ -204,20 +204,12 @@ const IndicatorDetailsModal: React.FC<IndicatorDetailsModalProps> = ({ isOpen, o
       let dataForAccumulation: HistoricalDataPoint[] | null = null;
       
       if (indicator.title === "Taxa CDI") {
-        // Accumulation needs SGS 4391 (monthly CDI).
-        // If primary chart is monthly, historicalDataPrimary has SGS 4391.
-        // If primary chart is 12m_accum, historicalDataSecondary has SGS 4391.
         dataForAccumulation = cdiChartType === 'monthly' ? historicalDataPrimary : historicalDataSecondary;
       } else if (indicator.title === "IPCA (Inflação)") {
-        // Accumulation needs SGS 433 (monthly IPCA).
         dataForAccumulation = ipcaChartType === 'monthly' ? historicalDataPrimary : historicalDataSecondary;
       } else if (indicator.title === "IGP-M (Inflação)") {
-        // Accumulation needs SGS 189 (monthly IGP-M).
-        // If primary chart is monthly (SGS 189), use that.
-        // If primary chart is 12m_accum (calculated from SGS 189), then historicalDataSecondary has SGS 189.
         dataForAccumulation = igpmChartType === 'monthly' ? historicalDataPrimary : historicalDataSecondary;
       } else if (historicalDataPrimary && historicalDataPrimary.length > 0 && indicator.sgsCode && indicator.sgsCode !== 'PTAX' && indicator.sgsCode !== 'FOCUS_ONLY') {
-          // Default for other SGS series that are percentage based.
           if (indicator.isPercentage || indicator.valueSuffix?.includes('%')) {
             dataForAccumulation = historicalDataPrimary;
           }
@@ -317,6 +309,8 @@ const IndicatorDetailsModal: React.FC<IndicatorDetailsModalProps> = ({ isOpen, o
     } else { 
       primaryChartConfigToUse = {...indicator, sgsCode: "CALCULATED_IGPM_12M", title: "IGP-M (Acumulado 12 Meses)", historicalSeriesName: "IGP-M (Acum. 12 Meses %)", historicalYAxisLabel: "Acum. %", valueSuffix: "%" };
     }
+  } else if (indicator.title === "PIB (Acum. 12 Meses)") {
+     primaryChartConfigToUse = {...indicator, sgsCode: 4382, title: "PIB (Acum. 12 Meses)", historicalSeriesName: "PIB Acum. 12M (R$ Milhões)", historicalYAxisLabel: "R$ Milhões", isPercentage: false, valuePrecision:0 };
   }
 
 
@@ -379,7 +373,7 @@ const IndicatorDetailsModal: React.FC<IndicatorDetailsModalProps> = ({ isOpen, o
                   <Button onClick={handleCustomDateFetch} variant="secondary" size="md" className="mt-2 sm:mt-0 sm:self-end">Buscar Período</Button>
                 </div>
                 
-                {accumulatedPeriodValue !== null && (
+                {accumulatedPeriodValue !== null && indicator.title !== "PIB (Acum. 12 Meses)" && ( // Hide for PIB 12M as it's already accumulated
                   <div className="my-2 p-3 bg-blue-50 dark:bg-slate-800/60 rounded-lg border border-blue-300 dark:border-blue-600/80 shadow-sm text-center">
                     <span className="block text-xs text-slate-600 dark:text-slate-300">
                       Retorno Acumulado ({indicator.title === "Taxa CDI" || indicator.title === "IPCA (Inflação)" || indicator.title === "IGP-M (Inflação)" ? "da variação mensal" : "no período"}) {currentPeriodForSummary ? `(${currentPeriodForSummary})` : ''}:
@@ -397,8 +391,8 @@ const IndicatorDetailsModal: React.FC<IndicatorDetailsModalProps> = ({ isOpen, o
                     </span>
                     <span className="block text-xl font-bold text-teal-600 dark:text-teal-300">
                       {formatNumberForDisplay(averagePeriodValue, {
-                        minimumFractionDigits: primaryChartConfigToUse.valuePrecision ?? 2,
-                        maximumFractionDigits: primaryChartConfigToUse.valuePrecision ?? 4,
+                        minimumFractionDigits: primaryChartConfigToUse.valuePrecision ?? (primaryChartConfigToUse.title === "PIB (Acum. 12 Meses)" ? 0 : 2),
+                        maximumFractionDigits: primaryChartConfigToUse.valuePrecision ?? (primaryChartConfigToUse.title === "PIB (Acum. 12 Meses)" ? 0 : 4),
                       })}
                       {primaryChartConfigToUse.historicalYAxisLabel ? ` ${primaryChartConfigToUse.historicalYAxisLabel.split('(')[0].trim()}` : (primaryChartConfigToUse.valueSuffix || '')}
                     </span>

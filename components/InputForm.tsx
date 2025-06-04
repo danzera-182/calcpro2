@@ -25,8 +25,21 @@ const TrashIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   </svg>
 );
 
+const ChevronDownIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+  </svg>
+);
 
-const InputForm: React.FC<InputFormProps> = ({
+// QuestionMarkCircleIcon is no longer used here, as InfoTooltip has a new default
+// const QuestionMarkCircleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+//   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true" {...props}>
+//     <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 5.25h.008v.008H12v-.008Z" />
+//   </svg>
+// );
+
+
+export const InputForm: React.FC<InputFormProps> = ({ 
   inputValues,
   onFormChange,
   onSimulate,
@@ -79,12 +92,6 @@ const InputForm: React.FC<InputFormProps> = ({
 
   const handleToggleChange = (name: string, checked: boolean) => {
     onFormChange({ [name]: checked });
-    if (name === 'enableAdvancedSimulation' && !checked) {
-      onFormChange({
-        advancedSimModeRetirement: false,
-        advancedSimModeSpecificContributions: false,
-      });
-    }
   };
 
   const handleSpecificContributionChange = (id: string, field: keyof Omit<SpecificContribution, 'id' | 'description'>, value: string | number) => {
@@ -149,6 +156,46 @@ const InputForm: React.FC<InputFormProps> = ({
     return <span className="text-xs text-slate-500 dark:text-slate-400">{label}: N/D</span>;
   };
 
+  const rateReferenceContent = (
+      <div className="space-y-2 text-xs w-full"> 
+        <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Sugestões de Taxa (Base Histórica):</p>
+        <div className="flex justify-between items-center">
+          <span className="text-slate-600 dark:text-slate-300">{renderAverageValue(cdiAverageData, 'CDI (últimos 20a)')}</span>
+          <Button
+            size="sm" variant="ghost"
+            onClick={(e) => { e.stopPropagation(); cdiAverageData.value !== null && onFormChange({ rateValue: cdiAverageData.value }); }}
+            disabled={isLoading || cdiAverageData.isLoading || cdiAverageData.value === null}
+            className="py-0.5 px-1.5 text-xs whitespace-nowrap ml-2"
+            title={cdiAverageData.error ? cdiAverageData.error : (cdiAverageData.value !== null ? `Usar média histórica CDI (${formatNumberForDisplay(cdiAverageData.value, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}% de ${cdiAverageData.sourceDateRange || '20a'})` : "Carregando média CDI")}
+          >
+            Usar Média CDI
+          </Button>
+        </div>
+        <div className="flex justify-between items-center">
+          <span className="text-slate-600 dark:text-slate-300">{renderAverageValue(ipcaAverageData, 'IPCA (últimos 20a)')}</span>
+           {inputValues.enableAdvancedSimulation && inputValues.adjustContributionsForInflation ? (
+                <Button 
+                    size="sm" variant="ghost" 
+                    onClick={(e) => { e.stopPropagation(); ipcaAverageData.value !== null && onFormChange({ expectedInflationRate: ipcaAverageData.value }); }} 
+                    disabled={isLoading || ipcaAverageData.isLoading || ipcaAverageData.value === null} 
+                    className="py-0.5 px-1.5 text-xs whitespace-nowrap ml-2"
+                    title={ipcaAverageData.error ? ipcaAverageData.error : (ipcaAverageData.value !== null ? `Usar média histórica IPCA (${formatNumberForDisplay(ipcaAverageData.value, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}% de ${ipcaAverageData.sourceDateRange || '20a'}) para inflação` : "Carregando média IPCA")}
+                >
+                  Usar Média IPCA
+                </Button>
+            ) : (
+                 <InfoTooltip text="Ative 'Simular Aposentadoria' e 'Ajustar pela Inflação' para usar este valor como referência de inflação para aportes/renda." position="left">
+                    <span className="ml-2 p-1 text-xs text-slate-400 dark:text-slate-500">(i)</span>
+                </InfoTooltip>
+            )}
+        </div>
+        <p className="text-xs text-slate-500 dark:text-slate-400 italic pt-1">
+          Médias calculadas a partir de dados históricos mensais do Banco Central do Brasil (BCB).
+          Rentabilidade passada não é garantia de rentabilidade futura. Use como referência.
+        </p>
+      </div>
+    );
+
 
   return (
     <form onSubmit={(e) => e.preventDefault()} className="space-y-7">
@@ -194,7 +241,18 @@ const InputForm: React.FC<InputFormProps> = ({
         />
         
         <FormattedNumericInput
-          label={<>Taxa Anual de Juros (%) <InfoTooltip text="Taxa de juros nominal anual que você espera para seus investimentos." /></>}
+          label={
+            <span className="flex items-center">
+              Taxa Anual de Juros (%)
+              <InfoTooltip 
+                text={rateReferenceContent} 
+                position="bottom" 
+                tooltipWidthClass="max-w-sm sm:max-w-md"
+                className="relative inline-flex items-center align-middle ml-1.5" // Ensure proper alignment
+              />
+              {/* Removed explicit icon, InfoTooltip will use its new default */}
+            </span>
+          }
           id="rateValue"
           name="rateValue"
           value={inputValues.rateValue}
@@ -210,35 +268,43 @@ const InputForm: React.FC<InputFormProps> = ({
           (Equivalente a aprox. {monthlyEquivalentRatePercent.toFixed(4)}% a.m. para os cálculos com aportes mensais.)
         </p>
 
-        <div className="pt-5 border-t border-slate-200 dark:border-slate-700/60 space-y-5">
-            <div className="flex items-center justify-between">
-            <label htmlFor="enableAdvancedSimulation" className="text-md font-semibold text-slate-800 dark:text-blue-400">
-                Simular aposentadoria e aportes personalizados
-            </label>
-            <ToggleSwitch
-                id="enableAdvancedSimulation"
-                checked={inputValues.enableAdvancedSimulation || false}
-                onChange={(checked) => handleToggleChange('enableAdvancedSimulation', checked)}
-                disabled={isLoading}
-            />
+        <div className="pt-5 border-t border-slate-200 dark:border-slate-700/60 space-y-3">
+            <div 
+              className={`
+                flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all duration-200 ease-in-out
+                ${inputValues.enableAdvancedSimulation 
+                  ? 'bg-blue-100 dark:bg-blue-800/60 shadow-md hover:bg-blue-200/70 dark:hover:bg-blue-700/70' 
+                  : 'bg-slate-100 dark:bg-slate-700/50 hover:bg-slate-200/80 dark:hover:bg-slate-600/60 shadow-sm'}
+              `}
+              onClick={() => {
+                const newAdvancedState = !inputValues.enableAdvancedSimulation;
+                onFormChange({ 
+                  enableAdvancedSimulation: newAdvancedState, 
+                  advancedSimModeRetirement: newAdvancedState, 
+                  advancedSimModeSpecificContributions: newAdvancedState ? inputValues.advancedSimModeSpecificContributions : false 
+                });
+              }}
+              role="button"
+              aria-pressed={inputValues.enableAdvancedSimulation}
+              aria-expanded={inputValues.enableAdvancedSimulation}
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); }}}
+            >
+              <span 
+                id="simulateRetirementLabel" 
+                className="text-md font-semibold text-blue-700 dark:text-blue-300 select-none"
+              >
+                Simular Aposentadoria
+              </span>
+              <ChevronDownIcon 
+                className={`w-5 h-5 text-blue-600 dark:text-blue-400 transform transition-transform duration-300 
+                ${inputValues.enableAdvancedSimulation ? 'rotate-180' : 'rotate-0'}`} 
+              />
             </div>
 
-            {inputValues.enableAdvancedSimulation && (
-            <Card className="p-4 space-y-5 bg-slate-100/70 dark:bg-slate-700/50 shadow-inner">
-                <div className="flex items-center justify-between">
-                <label htmlFor="advancedSimModeRetirement" className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Simular Aposentadoria <InfoTooltip text="Calcular projeção focada em objetivos de aposentadoria." />
-                </label>
-                <ToggleSwitch
-                    id="advancedSimModeRetirement"
-                    checked={inputValues.advancedSimModeRetirement || false}
-                    onChange={(checked) => handleToggleChange('advancedSimModeRetirement', checked)}
-                    disabled={isLoading}
-                />
-                </div>
-
-                {inputValues.advancedSimModeRetirement && (
-                <div className="pl-4 border-l-2 border-blue-500 dark:border-blue-400 space-y-4 pt-2 pb-2">
+            {inputValues.enableAdvancedSimulation && ( 
+            <Card className="p-4 space-y-5 bg-slate-50 dark:bg-slate-700/40 shadow-inner border border-slate-200 dark:border-slate-600/50">
+                <div className="space-y-4 pt-2 pb-2">
                     <Input label={<>Idade Atual <InfoTooltip text="Sua idade atual." /></>} type="number" id="currentAge" name="currentAge" value={inputValues.currentAge?.toString() || ''} onChange={handleDirectChange} min="0" disabled={isLoading} />
                     <Input label={<>Idade Alvo para Aposentadoria <InfoTooltip text="Com que idade você planeja se aposentar." /></>} type="number" id="targetAge" name="targetAge" value={inputValues.targetAge?.toString() || ''} onChange={handleDirectChange} min={(inputValues.currentAge || 0) + 1} disabled={isLoading} />
                     
@@ -266,17 +332,6 @@ const InputForm: React.FC<InputFormProps> = ({
                         displayOptions={{ minimumFractionDigits: 1, maximumFractionDigits: 2 }}
                         disabled={isLoading}
                     />
-                    <div className="flex justify-end -mt-3 mr-1">
-                        <Button 
-                            size="sm" variant="ghost" 
-                            onClick={() => ipcaAverageData.value !== null && onFormChange({ expectedInflationRate: ipcaAverageData.value })} 
-                            disabled={isLoading || ipcaAverageData.isLoading || ipcaAverageData.value === null} 
-                            className="py-0.5 px-1.5 text-xs whitespace-nowrap"
-                            title={ipcaAverageData.error ? ipcaAverageData.error : (ipcaAverageData.value !== null ? `Usar média histórica IPCA (${formatNumberForDisplay(ipcaAverageData.value, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}% de ${ipcaAverageData.sourceDateRange || '20a'})` : "Carregando média IPCA")}
-                        >
-                            Usar Média IPCA
-                        </Button>
-                    </div>
                     </>
                     )}
                     <FormattedNumericInput
@@ -291,8 +346,7 @@ const InputForm: React.FC<InputFormProps> = ({
                     disabled={isLoading}
                     />
                 </div>
-                )}
-
+                
                 <div className="flex items-center justify-between pt-3 mt-3 border-t border-slate-200 dark:border-slate-700/60">
                 <label htmlFor="advancedSimModeSpecificContributions" className="text-sm font-medium text-slate-700 dark:text-slate-300">
                     Definir Aportes Específicos <InfoTooltip text="Adicionar aportes únicos em datas específicas da simulação."/>
@@ -363,69 +417,27 @@ const InputForm: React.FC<InputFormProps> = ({
             )}
         </div>
         
-        <Card className="bg-slate-100/70 dark:bg-slate-700/50 p-3 sm:p-4 rounded-lg shadow-inner">
-          <Card.Header className="p-1 mb-1 !border-b-0">
-            <Card.Title className="text-sm font-semibold text-blue-600 dark:text-blue-400">
-              Não sabe qual taxa utilizar? 🤔💡
-            </Card.Title>
-          </Card.Header>
-          <Card.Content className="p-1 space-y-2 text-xs">
-            <div className="flex justify-between items-center">
-              <span className="text-slate-600 dark:text-slate-300">{renderAverageValue(cdiAverageData, 'CDI (últimos 20a)')}</span>
-              <Button 
-                size="sm" variant="ghost" 
-                onClick={() => cdiAverageData.value !== null && onFormChange({ rateValue: cdiAverageData.value })} 
-                disabled={isLoading || cdiAverageData.isLoading || cdiAverageData.value === null} 
-                className="py-0.5 px-1.5 text-xs whitespace-nowrap"
-              >
-                Usar Média CDI
-              </Button>
-            </div>
-             <div className="flex justify-between items-center">
-              <span className="text-slate-600 dark:text-slate-300">{renderAverageValue(ipcaAverageData, 'IPCA (últimos 20a)')}</span>
-               {inputValues.enableAdvancedSimulation && inputValues.advancedSimModeRetirement && inputValues.adjustContributionsForInflation ? (
-                <Button 
-                    size="sm" variant="ghost" 
-                    onClick={() => ipcaAverageData.value !== null && onFormChange({ expectedInflationRate: ipcaAverageData.value })} 
-                    disabled={isLoading || ipcaAverageData.isLoading || ipcaAverageData.value === null} 
-                    className="py-0.5 px-1.5 text-xs whitespace-nowrap"
-                >
-                  Usar Média IPCA
-                </Button>
-               ) : (
-                 <InfoTooltip text="Ative 'Simular Aposentadoria' e 'Ajustar pela Inflação' para usar este valor como referência de inflação."/>
-               )}
-            </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 italic pt-1">
-              Médias calculadas a partir de dados históricos mensais do Banco Central do Brasil (BCB).
-              Período da média pode variar conforme disponibilidade dos dados.
-            </p>
-          </Card.Content>
-        </Card>
       </div>
 
       <Button
-        type="button"
         onClick={onSimulate}
         variant="primary"
         size="lg"
-        className="w-full mt-8"
-        disabled={isLoading || cdiAverageData.isLoading || ipcaAverageData.isLoading}
+        className="w-full"
+        disabled={isLoading}
       >
-        {isLoading || cdiAverageData.isLoading || ipcaAverageData.isLoading ? (
-            <>
-              <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              {cdiAverageData.isLoading || ipcaAverageData.isLoading ? 'Buscando dados...' : 'Simulando...'}
-            </>
-          ) : (
-            'Simular'
-          )}
+        {isLoading ? (
+          <>
+            <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            Simulando...
+          </>
+        ) : (
+          'Simular Projeção'
+        )}
       </Button>
     </form>
   );
 };
-
-export default InputForm;

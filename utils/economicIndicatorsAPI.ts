@@ -1,44 +1,9 @@
 // utils/economicIndicatorsAPI.ts
-import { HistoricalDataPoint, DynamicHistoricalAverage, BtcPriceInfo, UsdBrlRateInfo, BitcoinPriceHistoryPoint, UsdtPriceInfo } from '../types'; 
+import { HistoricalDataPoint, DynamicHistoricalAverage, BtcPriceInfo, UsdBrlRateInfo, BitcoinPriceHistoryPoint, UsdtPriceInfo, FetchedEconomicIndicators } from '../types'; 
 // Removed FinnhubNewsItem from import
+// Added FetchedEconomicIndicators to import
 
-export interface FetchedEconomicIndicators {
-  selicRate?: number;
-  selicReferenceDate?: string; // Expected format: dd/MM/yyyy
-  cdiRate?: number;
-  cdiReferenceDate?: string; // Expected format: dd/MM/yyyy (for the daily rate)
-  ipcaRate?: number;
-  ipcaSourceType?: 'projection' | 'accumulated12m';
-  ipcaReferenceDate?: string;
-  trRate?: number;
-  trReferenceDate?: string; // Expected format: dd/MM/yyyy
-  igpmRate?: number; 
-  igpmReferenceDate?: string; // Expected format: MM/YYYY for accumulated
-  
-  netPublicDebtToGdpSGS4513?: number; // SGS 4513 (Dívida Líquida do Setor Público - % PIB)
-  netPublicDebtToGdpSGS4513ReferenceDate?: string; // MM/YYYY
-  
-  ibcBrRate?: number; // IBC-Br - Variação % acumulada em 12 meses
-  ibcBrReferenceDate?: string; // MM/YYYY
-  internationalReserves?: number; // Reservas Internacionais - US$ milhões
-  internationalReservesReferenceDate?: string; // dd/MM/YYYY
-  
-  goldReservesSGS3552MillionsUSD?: number; // SGS 3552 (Reservas internacionais - Ouro - US$ milhões)
-  goldReservesSGS3552MillionsUSDReferenceDate?: string; // MM/YYYY
-  
-  gdpProjection?: number; // PIB - Projeção de variação % anual
-  gdpProjectionSourceType?: 'projection_focus'; // Only Focus projection now
-  gdpProjectionReferenceDate?: string; // YYYY (from Focus)
-
-  grossGeneralGovernmentDebtToGdp?: number; // SGS 13762
-  grossGeneralGovernmentDebtToGdpReferenceDate?: string; // MM/YYYY
-
-  m2BalanceSGS27842?: number; // M2 Balance (Milhares de R$) - SGS 27842
-  m2BalanceSGS27842ReferenceDate?: string; // MM/YYYY
-  
-  lastUpdated?: string;
-  errors?: string[];
-}
+// Removed local FetchedEconomicIndicators interface, using the one from types.ts
 
 const COINGECKO_BASE_URL = 'https://api.coingecko.com/api/v3';
 
@@ -290,7 +255,7 @@ export async function fetchEconomicIndicators(): Promise<FetchedEconomicIndicato
     console.error("Error fetching Ouro Reservas (SGS 3552):", e.message, e);
   }
   
-  // 10. PIB (Projeção Focus)
+  // 10. PIB (Focus Projection - Kept as secondary)
   try {
     const pibFocusResponse = await fetch(`https://olinda.bcb.gov.br/olinda/servico/Focus/versao/v1/odata/ExpectativaMercadoAnual?$format=json&$top=1&$filter=Indicador%20eq%20'PIB%20Total'%20and%20DataReferencia%20eq%20'${currentSystemYear}'&$select=Mediana,Data`);
     if (!pibFocusResponse.ok) throw new Error(`BCB Focus API PIB request failed: ${pibFocusResponse.status}`);
@@ -302,7 +267,6 @@ export async function fetchEconomicIndicators(): Promise<FetchedEconomicIndicato
       indicators.gdpProjectionSourceType = 'projection_focus';
       indicators.gdpProjectionReferenceDate = String(currentSystemYear);
     } else {
-      // Try previous year if current year not found
       const pibFocusPrevYearResponse = await fetch(`https://olinda.bcb.gov.br/olinda/servico/Focus/versao/v1/odata/ExpectativaMercadoAnual?$format=json&$top=1&$filter=Indicador%20eq%20'PIB%20Total'%20and%20DataReferencia%20eq%20'${currentSystemYear - 1}'&$select=Mediana,Data`);
       if (!pibFocusPrevYearResponse.ok) throw new Error(`BCB Focus API PIB (Prev Year) request failed: ${pibFocusPrevYearResponse.status}`);
       const pibFocusPrevYearData = await pibFocusPrevYearResponse.json();
@@ -313,12 +277,12 @@ export async function fetchEconomicIndicators(): Promise<FetchedEconomicIndicato
         indicators.gdpProjectionSourceType = 'projection_focus';
         indicators.gdpProjectionReferenceDate = String(currentSystemYear - 1);
       } else {
-        throw new Error('Invalid PIB Focus data format for current and previous year');
+        console.warn('PIB Focus: Invalid data format for current and previous year, not critical for PIB 12M card.');
       }
     }
   } catch (e: any) {
-    errors.push('PIB');
-    console.error("Error fetching PIB (Focus):", e.message, e);
+    // errors.push('PIB (Focus)'); // Don't add to main errors if SGS 4382 succeeds
+    console.warn("Error fetching PIB (Focus, secondary):", e.message, e);
   }
 
   // 11. Dívida Bruta do Governo Geral (% PIB) (SGS 13762)
@@ -356,6 +320,25 @@ export async function fetchEconomicIndicators(): Promise<FetchedEconomicIndicato
     errors.push('M2 (Base Monetária)');
     console.error("Error fetching M2 (SGS 27842):", e.message, e);
   }
+  
+  // 13. PIB Acumulado 12 Meses (SGS 4382 - R$ milhões) - Primary for card
+  try {
+    const pib12mResponse = await fetch('https://api.bcb.gov.br/dados/serie/bcdata.sgs.4382/dados/ultimos/1?formato=json');
+    if (!pib12mResponse.ok) throw new Error(`BCB API PIB 12M (4382) request failed: ${pib12mResponse.status}`);
+    const pib12mData = await pib12mResponse.json();
+    if (pib12mData && pib12mData.length > 0 && pib12mData[0].valor !== undefined) {
+      const value = parseFloat(pib12mData[0].valor);
+      if(isNaN(value)) throw new Error('Invalid PIB 12M (4382) value (NaN)');
+      indicators.gdpAccumulated12mSGS4382 = value; // This is in R$ milhões
+      indicators.gdpAccumulated12mSGS4382ReferenceDate = formatSgsDateToMonthYear(pib12mData[0].data);
+    } else {
+      throw new Error('Invalid PIB 12M (4382) data format');
+    }
+  } catch (e: any) {
+    errors.push('PIB (Acum. 12M)');
+    console.error("Error fetching PIB 12M (SGS 4382):", e.message, e);
+  }
+
 
   if (errors.length > 0) {
     indicators.errors = errors;

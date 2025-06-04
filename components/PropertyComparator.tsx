@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback } from 'react';
 import { Card } from './ui/Card';
 import Button from './ui/Button';
@@ -6,7 +7,7 @@ import InfoTooltip from './ui/InfoTooltip';
 import { PropertyComparatorInputs, PropertyComparisonResults, PropertyScenarioOutput } from '../types';
 import { calculatePropertyComparison } from '../utils/propertyCalculations';
 import { formatCurrency } from '../utils/formatters';
-import PropertyCalculationDetailModal from './PropertyCalculationDetailModal'; // New Import
+import PropertyCalculationDetailModal from './PropertyCalculationDetailModal';
 
 const DEFAULT_PROPERTY_COMPARATOR_INPUTS: PropertyComparatorInputs = {
   propertyValue: 300000,
@@ -26,6 +27,20 @@ interface ResultsCardProps {
   scenarioType: 'buyOnly' | 'buyAndInvest' | 'rentAndInvest';
   isBest?: boolean;
 }
+
+// Icon Components
+const BuildingOfficeIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h6M9 12h6m-6 5.25h6M5.25 6.75h.008v.008H5.25V6.75zm0 5.25h.008v.008H5.25v-.008zm0 5.25h.008v.008H5.25v-.008zm13.5-5.25h.008v.008h-.008v-.008zm0 5.25h.008v.008h-.008v-.008zm0-10.5h.008v.008h-.008V6.75z" />
+  </svg>
+);
+
+const ScaleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v17.25m0 0c-1.472 0-2.882.265-4.185.75M12 20.25c1.472 0 2.882.265 4.185.75M18.75 4.97A48.416 48.416 0 0012 4.5c-2.291 0-4.545.16-6.75.47m13.5 0c1.01.143 2.01.317 3 .52m-3-.52M6.25 4.97A48.417 48.417 0 0112 4.5c2.291 0 4.545.16 6.75.47m-13.5 0C1.633 5.377 1.5 5.721 1.5 6.125v7.5c0 .404.133.748.375 1.025m18.75-8.55C22.367 5.377 22.5 5.721 22.5 6.125v7.5c0 .404-.133.748-.375 1.025M1.5 15h21M1.5 9h21" />
+  </svg>
+);
+
 
 const ResultsCard: React.FC<ResultsCardProps> = ({ result, scenarioType, isBest }) => {
   const baseColorConfig = {
@@ -167,6 +182,7 @@ const PropertyComparator: React.FC = () => {
   const inputGroups = [
     {
       title: "Detalhes da Compra e Financiamento do Imóvel",
+      icon: <BuildingOfficeIcon className="w-5 h-5 mr-2 text-blue-600 dark:text-blue-400" />,
       fields: [
         { name: "propertyValue", label: "Valor do Imóvel (R$)", icon: "R$", tooltip: "Preço total de compra do imóvel."},
         { name: "downPayment", label: "Valor da Entrada (R$)", icon: "R$", tooltip: "Montante pago inicialmente na compra do imóvel."},
@@ -177,6 +193,7 @@ const PropertyComparator: React.FC = () => {
     },
     {
       title: "Custos de Moradia e Parâmetros de Investimento",
+      icon: <ScaleIcon className="w-5 h-5 mr-2 text-blue-600 dark:text-blue-400" />,
       fields: [
         { name: "monthlyRent", label: "Valor do Aluguel Mensal (R$)", icon: "R$", isRental: true, tooltip: "Custo mensal do aluguel, caso opte por não comprar."},
         { name: "annualRentIncreasePercent", label: "Correção Anual do Aluguel (Ex: IGPM %)", icon: "%", isRental: true, tooltip: "Percentual de reajuste anual do contrato de aluguel."},
@@ -197,7 +214,10 @@ const PropertyComparator: React.FC = () => {
         <Card.Content className="space-y-8">
           {inputGroups.map(group => (
             <Card key={group.title} className="bg-slate-50 dark:bg-slate-800/50 p-4 shadow-inner">
-              <Card.Title className="text-lg mb-4 text-blue-600 dark:text-blue-400">{group.title}</Card.Title>
+              <Card.Title className="text-lg mb-4 text-blue-600 dark:text-blue-400 flex items-center">
+                {group.icon}
+                {group.title}
+              </Card.Title>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
                 {group.fields.map(field => (
                    <FormattedNumericInput

@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { ScenarioData, InputFormData, ProjectionPoint, RetirementAnalysisResults } from '../types';
 import LineChartComponent from './LineChartComponent';
@@ -9,7 +8,7 @@ import Button from './ui/Button';
 import { formatCurrency, formatNumber, formatNumberForDisplay } from '../utils/formatters';
 import { DEFAULT_SAFE_WITHDRAWAL_RATE } from '../constants';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable'; // Import for its side-effect of patching jsPDF
+import autoTable from 'jspdf-autotable';
 
 
 interface ResultsDisplayProps {
@@ -19,7 +18,48 @@ interface ResultsDisplayProps {
 
 type ProjectionView = 'yearly' | 'monthly';
 
-const calculateRetirementAnalysisAndInheritance = (
+// Helper function to convert SVG string to Data URL (PNG)
+const svgToDataURL = (svgString: string, width: number, height: number): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const svg = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(svg);
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = width * 2; // Render at 2x for better quality
+      canvas.height = height * 2;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const dataURL = canvas.toDataURL('image/png');
+        URL.revokeObjectURL(url);
+        resolve(dataURL);
+      } else {
+        URL.revokeObjectURL(url);
+        reject(new Error('Could not get canvas context for SVG conversion'));
+      }
+    };
+    img.onerror = (e) => {
+      URL.revokeObjectURL(url);
+      reject(e);
+    };
+    img.src = url;
+  });
+};
+
+// SVG string for the logo (white version)
+const TWL_LOGO_SVG_STRING = `
+  <svg viewBox="0 0 165 35" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="Helvetica, Arial, sans-serif">
+      <tspan font-size="15" font-weight="normal" fill="#FFFFFF">the </tspan>
+      <tspan font-weight="normal" font-size="26" fill="#FFFFFF">wealth</tspan>
+      <tspan font-weight="bold" font-size="26" fill="#FFFFFF">lab.</tspan>
+    </text>
+  </svg>
+`;
+
+
+const calculateRetirementAnalysis = ( // Renamed from calculateRetirementAnalysisAndInheritance
   yearlyProjection: ProjectionPoint[], 
   inputValues: InputFormData
 ): RetirementAnalysisResults | null => {
@@ -100,25 +140,7 @@ const calculateRetirementAnalysisAndInheritance = (
     }
   }
 
-
-  let projectedCapitalAt72: number | undefined = undefined;
-  const age72DataPoint = yearlyProjection.find(p => p.age === 71); 
-  if (age72DataPoint) {
-    projectedCapitalAt72 = age72DataPoint.finalBalance;
-  } else if (inputValues.currentAge === 72 && yearlyProjection.length === 0) {
-    let initialWithdrawal = 0;
-    if(inputValues.desiredMonthlyIncomeToday && inputValues.desiredMonthlyIncomeToday > 0){
-        initialWithdrawal = inputValues.desiredMonthlyIncomeToday; 
-    }
-    projectedCapitalAt72 = inputValues.initialInvestment - initialWithdrawal;
-
-  } else if (yearlyProjection.length > 0) {
-    const lastProjectedPoint = yearlyProjection[yearlyProjection.length - 1];
-    if(lastProjectedPoint.age === undefined || (lastProjectedPoint.age && lastProjectedPoint.age < 71)){
-        projectedCapitalAt72 = undefined; 
-    }
-  }
-
+  // Removed projectedCapitalAt72 calculation
 
   return {
     targetAge: inputValues.targetAge,
@@ -128,7 +150,7 @@ const calculateRetirementAnalysisAndInheritance = (
     canMeetGoal,
     swrUsed: DEFAULT_SAFE_WITHDRAWAL_RATE,
     achievableMonthlyIncomeWithProjectedCapital,
-    projectedCapitalAt72,
+    // projectedCapitalAt72, // REMOVED
     perpetualMonthlyWithdrawalFutureValue: perpetualMonthlyWithdrawalFutureValueSWR,
     perpetualMonthlyWithdrawalTodayValue: perpetualMonthlyWithdrawalTodayValueSWR,
     interestOnlyMonthlyWithdrawalFutureValue: interestOnlyMonthlyWithdrawalFutureValue,
@@ -140,7 +162,7 @@ const calculateRetirementAnalysisAndInheritance = (
 const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ scenarioData, inputValues }) => {
   const [projectionView, setProjectionView] = useState<ProjectionView>('yearly');
 
-  const retirementAnalysisFullResults = scenarioData.data ? calculateRetirementAnalysisAndInheritance(scenarioData.data, inputValues) : null;
+  const retirementAnalysisFullResults = scenarioData.data ? calculateRetirementAnalysis(scenarioData.data, inputValues) : null;
 
   const retirementAgeMarkerValue = useMemo(() => {
     if (inputValues.enableAdvancedSimulation && 
@@ -154,193 +176,346 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ scenarioData, inputValu
   }, [inputValues]);
 
 
-  const handleExportPDF = () => {
-    const doc = new jsPDF();
-    const pageHeight = doc.internal.pageSize.height;
-    let finalY = 20; 
+  const handleExportPDF = async () => {
+    try { 
+      const doc = new jsPDF({
+        orientation: 'p',
+        unit: 'mm',
+        format: 'a4'
+      });
 
-    doc.setFontSize(18);
-    doc.text("Relatório de Projeção de Investimentos", doc.internal.pageSize.width / 2, finalY, { align: 'center' });
-    finalY += 10;
+      const TWL_BLUE_HEADER_FOOTER = '#1E40AF'; 
+      const TWL_GOLD = '#B8860B'; 
+      const TEXT_COLOR_DARK_ON_LIGHT_BG = '#334155'; 
+      const TEXT_COLOR_LIGHT_ON_DARK_BG = '#FFFFFF';
+      const SECTION_TITLE_COLOR = '#1D4ED8'; 
+      const BACKGROUND_HIGHLIGHT = '#F3F4F6'; // For summary boxes
+      const PARAMETER_BLOCK_BG = '#F8FAFC'; 
+      const PARAMETER_BLOCK_BORDER = '#E2E8F0'; 
 
-    doc.setFontSize(10);
-    doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR')}`, doc.internal.pageSize.width / 2, finalY, { align: 'center' });
-    finalY += 10;
+      const PAGE_MARGIN = 15;
+      const CONTENT_WIDTH = doc.internal.pageSize.width - 2 * PAGE_MARGIN;
+      const LOGO_HEIGHT = 10;
+      const LOGO_WIDTH = (165/35) * LOGO_HEIGHT; 
 
-    doc.setFontSize(12);
-    doc.text("Parâmetros da Simulação:", 14, finalY);
-    finalY += 7;
-    doc.setFontSize(10);
+      let logoDataURL = '';
+      try {
+          logoDataURL = await svgToDataURL(TWL_LOGO_SVG_STRING, 165, 35);
+      } catch (e) {
+          console.error("Error converting SVG logo to Data URL:", e);
+      }
+      
+      let finalY = PAGE_MARGIN;
 
-    const annualRateDecimal = inputValues.rateValue / 100;
-    let monthlyEquivalentRatePercent = (Math.pow(1 + annualRateDecimal, 1 / 12) - 1) * 100;
-    if (annualRateDecimal <= -1) monthlyEquivalentRatePercent = -100;
-
-    const params = [
-      `Descrição da Projeção: ${scenarioData.label}`,
-      `Valor Inicial: ${formatCurrency(inputValues.initialInvestment)}`,
-      `Aporte Mensal Base: ${formatCurrency(inputValues.contributionValue)}` + 
-        (inputValues.enableAdvancedSimulation && inputValues.adjustContributionsForInflation && inputValues.expectedInflationRate ? ` (corrigido por inflação de ${inputValues.expectedInflationRate}% a.a.)` : ''),
-      `Taxa Anual Informada: ${formatNumber(inputValues.rateValue)}% a.a. (Equivalente: ~${formatNumber(monthlyEquivalentRatePercent, 4)}% a.m.)`,
-      `Período do Investimento (base): ${inputValues.investmentPeriodYears} ano(s)`,
-    ];
-     if (inputValues.enableAdvancedSimulation && inputValues.advancedSimModeRetirement && inputValues.currentAge && inputValues.targetAge) {
-        params.push(`Simulação de Aposentadoria Ativa:`);
-        params.push(`  Idade Atual: ${inputValues.currentAge}, Idade Alvo Aposentadoria: ${inputValues.targetAge}`);
-        params.push(`  Renda Mensal Desejada (hoje): ${formatCurrency(inputValues.desiredMonthlyIncomeToday || 0)}`);
-        if (inputValues.adjustContributionsForInflation) {
-            params.push(`  Ajuste pela Inflação: Sim (Taxa: ${formatNumber(inputValues.expectedInflationRate || 0, 2)}% a.a.)`);
+      const addHeader = (docInstance: jsPDF, pageNumber: number) => {
+        docInstance.setFillColor(TWL_BLUE_HEADER_FOOTER);
+        docInstance.rect(0, 0, docInstance.internal.pageSize.width, 20, 'F');
+        if (logoDataURL) {
+          docInstance.addImage(logoDataURL, 'PNG', PAGE_MARGIN, 5, LOGO_WIDTH, LOGO_HEIGHT);
         } else {
-            params.push(`  Ajuste pela Inflação: Não`);
+          docInstance.setFont("Helvetica", "bold");
+          docInstance.setFontSize(14);
+          docInstance.setTextColor(TEXT_COLOR_LIGHT_ON_DARK_BG);
+          docInstance.text("The Wealth Lab", PAGE_MARGIN, 12);
         }
-        params.push(`  Simulação estendida até 72 anos para cálculo de herança.`);
-    }
-    
-    params.forEach(param => {
-      doc.text(param, 14, finalY);
-      finalY += 6;
-    });
-    finalY += 4; 
+        docInstance.setFont("Helvetica", "normal");
+        docInstance.setFontSize(9);
+        docInstance.setTextColor(TEXT_COLOR_LIGHT_ON_DARK_BG);
+        docInstance.text("Relatório de Projeção de Investimentos", docInstance.internal.pageSize.width - PAGE_MARGIN, 10, { align: 'right' });
+        docInstance.setFontSize(8);
+        docInstance.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')}`, docInstance.internal.pageSize.width - PAGE_MARGIN, 15, { align: 'right' });
+        finalY = 20 + 10; 
+      };
 
-    const lastProjectionPointPdf = scenarioData.data[scenarioData.data.length - 1];
-    if (lastProjectionPointPdf) {
-        doc.setFontSize(12);
-        doc.text("Resumo da Projeção Final (Considerando simulação estendida, se aplicável):", 14, finalY);
-        finalY += 7;
-        doc.setFontSize(10);
-        const summary = [
-            `Valor Total Final Investido (aportes): ${formatCurrency(lastProjectionPointPdf.cumulativeContributions)}`, 
-            `Total de Juros Ganhos: ${formatCurrency(lastProjectionPointPdf.cumulativeInterest)}`,
-            `Total de Retiradas (até 72 anos): ${formatCurrency(lastProjectionPointPdf.cumulativeWithdrawals || 0)}`,
-            `Valor Final Acumulado (aos ${lastProjectionPointPdf.age !== undefined ? lastProjectionPointPdf.age + 1 : inputValues.investmentPeriodYears + (inputValues.currentAge||0)} anos): ${formatCurrency(lastProjectionPointPdf.finalBalance)}`,
-        ];
-        summary.forEach(item => {
-            doc.text(item, 14, finalY);
-            finalY += 6;
+      const addFooter = (docInstance: jsPDF, pageNumber: number, totalPages: number) => {
+        const FOOTER_HEIGHT = 15;
+        docInstance.setFillColor(TWL_BLUE_HEADER_FOOTER);
+        docInstance.rect(0, docInstance.internal.pageSize.height - FOOTER_HEIGHT, docInstance.internal.pageSize.width, FOOTER_HEIGHT, 'F');
+        docInstance.setFont("Helvetica", "normal");
+        docInstance.setFontSize(8);
+        docInstance.setTextColor(TEXT_COLOR_LIGHT_ON_DARK_BG);
+        docInstance.text("Relatório gerado por The Wealth Lab – Seu Laboratório de Decisões Financeiras.", PAGE_MARGIN, docInstance.internal.pageSize.height - 8);
+        docInstance.text(`Página ${pageNumber}/${totalPages}`, docInstance.internal.pageSize.width - PAGE_MARGIN, docInstance.internal.pageSize.height - 8, { align: 'right' });
+      };
+
+      const addSectionTitle = (title: string, yPos: number): number => {
+          doc.setFont("Helvetica", "bold");
+          doc.setFontSize(14);
+          doc.setTextColor(SECTION_TITLE_COLOR);
+          doc.text(title, PAGE_MARGIN, yPos);
+          yPos += 6;
+          doc.setDrawColor(TWL_GOLD);
+          doc.setLineWidth(0.5);
+          doc.line(PAGE_MARGIN, yPos, PAGE_MARGIN + CONTENT_WIDTH, yPos);
+          return yPos + 5;
+      };
+      
+      const addParagraph = (text: string, yPos: number, options: any = {}): number => {
+          doc.setFont("Helvetica", options.style || "normal");
+          doc.setFontSize(options.size || 10);
+          doc.setTextColor(options.color || TEXT_COLOR_DARK_ON_LIGHT_BG);
+          const splitText = doc.splitTextToSize(text, CONTENT_WIDTH);
+          doc.text(splitText, PAGE_MARGIN, yPos);
+          return yPos + (splitText.length * (options.lineHeightFactor || 5)); 
+      };
+      
+      const addHighlightBox = (lines: {label: string, value: string, isSubHeader?: boolean}[], yPos: number, title?: string): number => {
+          const boxPaddingHorizontal = 4;
+          const boxPaddingVertical = 3;
+          const lineHeight = 6;
+          let boxHeight = (title ? lineHeight : 0) + lines.length * lineHeight + 2 * boxPaddingVertical;
+          
+          doc.setFillColor(BACKGROUND_HIGHLIGHT);
+          doc.setDrawColor(TWL_GOLD);
+          doc.setLineWidth(0.2);
+          doc.rect(PAGE_MARGIN, yPos, CONTENT_WIDTH, boxHeight, 'FD'); 
+          
+          let currentYInBox = yPos + boxPaddingVertical;
+          if (title) {
+              doc.setFont("Helvetica", "bold");
+              doc.setFontSize(10);
+              doc.setTextColor(SECTION_TITLE_COLOR);
+              doc.text(title, PAGE_MARGIN + boxPaddingHorizontal, currentYInBox + 4);
+              currentYInBox += lineHeight;
+          }
+          lines.forEach(line => {
+              doc.setFont("Helvetica", line.isSubHeader ? "bold" : "normal");
+              doc.setFontSize(9);
+              doc.setTextColor(TEXT_COLOR_DARK_ON_LIGHT_BG);
+              doc.text(line.label, PAGE_MARGIN + boxPaddingHorizontal, currentYInBox + 4); 
+              if (!line.isSubHeader) {
+                doc.setFont("Helvetica", "bold"); 
+                doc.setTextColor(SECTION_TITLE_COLOR);
+                doc.text(line.value, PAGE_MARGIN + boxPaddingHorizontal + 70, currentYInBox + 4, {align: 'left'});
+              }
+              currentYInBox += lineHeight;
+          });
+          return yPos + boxHeight + 5; 
+      };
+
+      // --- CONTENT START ---
+      finalY = addSectionTitle("Introdução", finalY);
+      finalY = addParagraph("Este relatório personalizado, gerado pela plataforma The Wealth Lab, apresenta uma projeção detalhada dos seus investimentos e uma análise de aposentadoria baseada nos parâmetros que você forneceu. Nosso objetivo é oferecer clareza e insights para auxiliar em suas decisões financeiras.", finalY);
+      finalY += 5;
+
+      // --- Parâmetros da Simulação Block ---
+      finalY = addSectionTitle("Parâmetros da Simulação", finalY);
+      const paramBoxTopMargin = 2;
+      finalY += paramBoxTopMargin; 
+
+      const parameterLines: {key: string, value: string, highlightValue?: boolean, isSubHeader?: boolean}[] = [];
+      const annualRateDecimal = inputValues.rateValue / 100;
+      let monthlyEquivalentRatePercent = (Math.pow(1 + annualRateDecimal, 1 / 12) - 1) * 100;
+      if (annualRateDecimal <= -1) monthlyEquivalentRatePercent = -100;
+      
+      parameterLines.push({ key: "Descrição da Projeção:", value: scenarioData.label });
+      parameterLines.push({ key: "Valor Inicial:", value: formatCurrency(inputValues.initialInvestment) });
+      let contributionText = formatCurrency(inputValues.contributionValue);
+      if (inputValues.enableAdvancedSimulation && inputValues.adjustContributionsForInflation && inputValues.expectedInflationRate) {
+          contributionText += ` (corrigido por inflação de ${inputValues.expectedInflationRate}% a.a.)`;
+      }
+      parameterLines.push({ key: "Aporte Mensal Base:", value: contributionText });
+      parameterLines.push({ key: "Taxa Anual Informada:", value: `${formatNumber(inputValues.rateValue)}% a.a. (~${formatNumber(monthlyEquivalentRatePercent, 4)}% a.m.)` });
+      parameterLines.push({ key: "Período do Investimento (base):", value: `${inputValues.investmentPeriodYears} ano(s)` });
+
+      if (inputValues.enableAdvancedSimulation && inputValues.advancedSimModeRetirement && inputValues.currentAge && inputValues.targetAge) {
+          parameterLines.push({ key: "Simulação de Aposentadoria Ativa:", value: "", isSubHeader: true}); // Sub-header style
+          parameterLines.push({ key: "  Idade Atual:", value: `${inputValues.currentAge}, Idade Alvo Aposentadoria: ${inputValues.targetAge}` });
+          parameterLines.push({ key: "  Renda Mensal Desejada (hoje):", value: formatCurrency(inputValues.desiredMonthlyIncomeToday || 0) });
+          if (inputValues.adjustContributionsForInflation) {
+              parameterLines.push({ key: "  Ajuste pela Inflação:", value: `Sim (Taxa: ${formatNumber(inputValues.expectedInflationRate || 0, 2)}% a.a.)` });
+          } else {
+              parameterLines.push({ key: "  Ajuste pela Inflação:", value: "Não" });
+          }
+          parameterLines.push({ key: "  Simulação estendida até 72 anos.", value: "" });
+      }
+      
+      const paramLineHeight = 6;
+      const paramBoxInternalVPadding = 4; 
+      const paramBoxInternalHPadding = 4; 
+      const paramBoxHeight = (parameterLines.length * paramLineHeight) + (2 * paramBoxInternalVPadding);
+
+      doc.setFillColor(PARAMETER_BLOCK_BG);
+      doc.setDrawColor(PARAMETER_BLOCK_BORDER);
+      doc.setLineWidth(0.2);
+      doc.rect(PAGE_MARGIN, finalY, CONTENT_WIDTH, paramBoxHeight, 'FD');
+
+      let currentLineY = finalY + paramBoxInternalVPadding;
+      parameterLines.forEach(pLine => {
+          if (pLine.isSubHeader) {
+            doc.setFont("Helvetica", "bold");
+            doc.setFontSize(9);
+            doc.setTextColor(SECTION_TITLE_COLOR);
+            doc.text(pLine.key, PAGE_MARGIN + paramBoxInternalHPadding, currentLineY + 1, { align: 'left' });
+          } else {
+            doc.setFont("Helvetica", "normal");
+            doc.setFontSize(9);
+            doc.setTextColor(TEXT_COLOR_DARK_ON_LIGHT_BG);
+            doc.text(pLine.key, PAGE_MARGIN + paramBoxInternalHPadding, currentLineY + 1);
+            
+            doc.setFont("Helvetica", pLine.highlightValue ? "bold" : "normal");
+            doc.setTextColor(pLine.highlightValue ? SECTION_TITLE_COLOR : TEXT_COLOR_DARK_ON_LIGHT_BG);
+            doc.text(pLine.value, PAGE_MARGIN + paramBoxInternalHPadding + 70, currentLineY + 1, { align: 'left' });
+          }
+          currentLineY += paramLineHeight;
+      });
+      finalY += paramBoxHeight + 5;
+      // --- End Parâmetros da Simulação Block ---
+
+
+      const lastProjectionPointPdf = scenarioData.data[scenarioData.data.length - 1];
+      if (lastProjectionPointPdf) {
+          finalY = addSectionTitle("Resumo da Projeção Final", finalY);
+          const summaryLines = [
+              {label: "Total Investido (aportes):", value: formatCurrency(lastProjectionPointPdf.cumulativeContributions)},
+              {label: "Total de Juros Ganhos:", value: formatCurrency(lastProjectionPointPdf.cumulativeInterest)},
+              {label: "Total de Retiradas (durante simulação):", value: formatCurrency(lastProjectionPointPdf.cumulativeWithdrawals || 0)},
+              {label: `Valor Final Acumulado (aos ${lastProjectionPointPdf.age !== undefined ? lastProjectionPointPdf.age + 1 : inputValues.investmentPeriodYears + (inputValues.currentAge||0)} anos):`, value: formatCurrency(lastProjectionPointPdf.finalBalance)}
+          ];
+          finalY = addHighlightBox(summaryLines, finalY);
+      }
+      
+
+      if (retirementAnalysisFullResults) {
+          finalY = addSectionTitle("Análise de Renda de Aposentadoria", finalY);
+          let retirementSummaryLines = [
+              {label: "Idade Alvo para Aposentadoria:", value: `${retirementAnalysisFullResults.targetAge} anos`},
+              {label: "Patrimônio Projetado na Aposentadoria:", value: formatCurrency(retirementAnalysisFullResults.projectedCapitalAtRetirement)},
+              {label: "Renda Mensal Desejada (corrigida):", value: formatCurrency(retirementAnalysisFullResults.finalDesiredMonthlyIncome)},
+              {label: "  (Equivalente a hoje):", value: formatCurrency(inputValues.desiredMonthlyIncomeToday || 0)},
+              {label: `Capital Necessário (SWR ${retirementAnalysisFullResults.swrUsed*100}%):`, value: formatCurrency(retirementAnalysisFullResults.capitalNeededForDesiredIncome)},
+              {label: "Meta Atingida:", value: retirementAnalysisFullResults.canMeetGoal ? 'Sim ✅' : 'Não ❌'},
+          ];
+          if (!retirementAnalysisFullResults.canMeetGoal && retirementAnalysisFullResults.achievableMonthlyIncomeWithProjectedCapital !== undefined) {
+              retirementSummaryLines.push({label: "Renda Máxima Atingível (SWR):", value: formatCurrency(retirementAnalysisFullResults.achievableMonthlyIncomeWithProjectedCapital)});
+          }
+          if (retirementAnalysisFullResults.perpetualMonthlyWithdrawalFutureValue !== undefined) {
+             let valSWR = formatCurrency(retirementAnalysisFullResults.perpetualMonthlyWithdrawalFutureValue);
+             if (retirementAnalysisFullResults.perpetualMonthlyWithdrawalTodayValue !== undefined) {
+               valSWR += ` (eq. ${formatCurrency(retirementAnalysisFullResults.perpetualMonthlyWithdrawalTodayValue)} hoje)`;
+             }
+             retirementSummaryLines.push({label: `Retirada Vitalícia (SWR ${retirementAnalysisFullResults.swrUsed*100}%):`, value: valSWR});
+          }
+          if (retirementAnalysisFullResults.interestOnlyMonthlyWithdrawalFutureValue !== undefined) {
+             let valInterest = formatCurrency(retirementAnalysisFullResults.interestOnlyMonthlyWithdrawalFutureValue);
+             if (retirementAnalysisFullResults.interestOnlyMonthlyWithdrawalTodayValue !== undefined) {
+               valInterest += ` (eq. ${formatCurrency(retirementAnalysisFullResults.interestOnlyMonthlyWithdrawalTodayValue)} hoje)`;
+             }
+             retirementSummaryLines.push({label: `Retirada Vitalícia (Só Juros ${formatNumber(inputValues.rateValue, 2)}% a.a.):`, value: valInterest});
+          }
+          finalY = addHighlightBox(retirementSummaryLines, finalY, "Status da Aposentadoria");
+
+          // Removed "Herança Estimada" section from PDF
+      }
+      
+      finalY = addSectionTitle("Evolução do Patrimônio", finalY);
+      finalY = addParagraph("O gráfico detalhado da evolução do seu patrimônio e aportes está disponível na versão interativa do The Wealth Lab. Acesse o aplicativo para uma visualização completa.", finalY, {style: 'italic', size: 9});
+      finalY += 10;
+
+      if (finalY > doc.internal.pageSize.height - 60) { 
+        doc.addPage();
+        finalY = PAGE_MARGIN; 
+      }
+      finalY = addSectionTitle("Detalhes da Projeção Anual", finalY);
+
+      if (scenarioData.data && scenarioData.data.length > 0) {
+        autoTable(doc, { 
+            startY: finalY,
+            head: [['Ano', 'Idade', 'Saldo Inicial', 'Aportes Anuais', 'Retiradas Anuais', 'Juros Anuais', 'Saldo Final', 'Total Aportado', 'Total Retirado', 'Total Juros']],
+            body: scenarioData.data.map(row => [
+                row.year,
+                row.age !== undefined ? row.age : '-',
+                formatCurrency(row.initialBalance),
+                formatCurrency(row.totalContributions),
+                formatCurrency(row.totalWithdrawalsYearly || 0),
+                formatCurrency(row.totalInterestEarned),
+                formatCurrency(row.finalBalance),
+                formatCurrency(row.cumulativeContributions),
+                formatCurrency(row.cumulativeWithdrawals || 0),
+                formatCurrency(row.cumulativeInterest),
+            ]),
+            theme: 'grid',
+            headStyles: { fillColor: TWL_BLUE_HEADER_FOOTER, textColor: TEXT_COLOR_LIGHT_ON_DARK_BG, fontStyle: 'bold', fontSize: 8, halign: 'center' }, 
+            bodyStyles: { fontSize: 7, cellPadding: 1.5, textColor: TEXT_COLOR_DARK_ON_LIGHT_BG },
+            alternateRowStyles: { fillColor: BACKGROUND_HIGHLIGHT },
+            columnStyles: { 0: { cellWidth: 10, halign: 'center' }, 1: { cellWidth: 10, halign: 'center' } },
+            didDrawPage: (data: any) => { 
+                addHeader(doc, data.pageNumber);
+                const totalPagesNow = doc.getNumberOfPages(); 
+                addFooter(doc, data.pageNumber, totalPagesNow);
+                finalY = data.cursor?.y || finalY; 
+                 if (data.pageNumber > 1 && data.pageNumber === doc.getNumberOfPages()) { 
+                    finalY = PAGE_MARGIN + 25; 
+                 } else {
+                    finalY = data.cursor?.y || finalY;
+                 }
+            }
         });
-    }
-    finalY += 4; 
-    
-    if (retirementAnalysisFullResults) {
-        doc.setFontSize(12);
-        doc.text("Análise de Renda de Aposentadoria:", 14, finalY);
-        finalY += 7;
-        doc.setFontSize(10);
-        const retirementSummary = [
-            `Idade Alvo para Aposentadoria: ${retirementAnalysisFullResults.targetAge} anos`,
-            `Patrimônio Projetado na Aposentadoria: ${formatCurrency(retirementAnalysisFullResults.projectedCapitalAtRetirement)}`,
-            `Renda Mensal Desejada (corrigida para aposentadoria): ${formatCurrency(retirementAnalysisFullResults.finalDesiredMonthlyIncome)}`,
-            `  (Equivalente a ${formatCurrency(inputValues.desiredMonthlyIncomeToday || 0)} em valores de hoje)`,
-            `Capital Necessário para Renda Desejada (SWR ${retirementAnalysisFullResults.swrUsed*100}%): ${formatCurrency(retirementAnalysisFullResults.capitalNeededForDesiredIncome)}`,
-            `Meta Atingida: ${retirementAnalysisFullResults.canMeetGoal ? 'Sim' : 'Não'}`,
-        ];
-        if (!retirementAnalysisFullResults.canMeetGoal && retirementAnalysisFullResults.achievableMonthlyIncomeWithProjectedCapital !== undefined) {
-            retirementSummary.push(`Renda Máxima Atingível com Patrimônio Projetado (SWR): ${formatCurrency(retirementAnalysisFullResults.achievableMonthlyIncomeWithProjectedCapital)}`);
+        if ((doc as any).lastAutoTable) { 
+          finalY = (doc as any).lastAutoTable.finalY + 10;
         }
-         if (retirementAnalysisFullResults.perpetualMonthlyWithdrawalFutureValue !== undefined) {
-           let perpetualTextSWR = `Retirada Mensal Vitalícia (SWR ${retirementAnalysisFullResults.swrUsed*100}%): ${formatCurrency(retirementAnalysisFullResults.perpetualMonthlyWithdrawalFutureValue)}`;
-           if (retirementAnalysisFullResults.perpetualMonthlyWithdrawalTodayValue !== undefined) {
-             perpetualTextSWR += ` (Equivalente a ${formatCurrency(retirementAnalysisFullResults.perpetualMonthlyWithdrawalTodayValue)} hoje)`;
-           }
-           retirementSummary.push(perpetualTextSWR);
-        }
-        if (retirementAnalysisFullResults.interestOnlyMonthlyWithdrawalFutureValue !== undefined) {
-           let perpetualTextInterest = `Retirada Mensal Vitalícia (Só Juros ${formatNumber(inputValues.rateValue, 2)}% a.a.): ${formatCurrency(retirementAnalysisFullResults.interestOnlyMonthlyWithdrawalFutureValue)}`;
-           if (retirementAnalysisFullResults.interestOnlyMonthlyWithdrawalTodayValue !== undefined) {
-             perpetualTextInterest += ` (Equivalente a ${formatCurrency(retirementAnalysisFullResults.interestOnlyMonthlyWithdrawalTodayValue)} hoje)`;
-           }
-           retirementSummary.push(perpetualTextInterest);
+      } else {
+        finalY = addParagraph("Nenhum dado de projeção anual para exibir na tabela.", finalY);
+      }
+
+      if (finalY > doc.internal.pageSize.height - 50 && finalY < doc.internal.pageSize.height - 15 /* footer height approx */) { 
+          // Only add page if there's still content to draw for disclaimers
+      } else if (finalY > doc.internal.pageSize.height - 15) { // If already in footer area
+          doc.addPage();
+          finalY = PAGE_MARGIN;
+      }
+
+
+      finalY = addSectionTitle("Observações Importantes", finalY);
+      const disclaimers = [
+          "Este é um relatório de simulação e não garante rentabilidade futura.",
+          "Os valores apresentados são projeções baseadas nos parâmetros informados.",
+          "Aportes são considerados mensais e a taxa de juros informada é anual (convertida para mensal nos cálculos).",
+           inputValues.enableAdvancedSimulation && inputValues.advancedSimModeSpecificContributions && inputValues.specificContributions && inputValues.specificContributions.length > 0 
+              ? "Aportes específicos foram incluídos na simulação." : "",
+          "Retiradas (se em modo aposentadoria) são mensais, baseadas na renda desejada e corrigidas pela inflação (se aplicável), até os 72 anos.", // Kept "até 72 anos" as it describes simulation behavior
+          "Consulte um profissional financeiro para decisões de investimento."
+      ].filter(d => d);
+
+      disclaimers.forEach(disc => {
+          if (finalY + 4 > doc.internal.pageSize.height - 20) { // Check space before drawing
+              doc.addPage();
+              finalY = PAGE_MARGIN;
+              addHeader(doc, doc.getNumberOfPages()); 
+          }
+          finalY = addParagraph(disc, finalY, {size: 8, style: 'italic', lineHeightFactor: 4});
+      });
+      finalY += 5;
+      
+      if (finalY + 5 > doc.internal.pageSize.height - 20) { 
+            doc.addPage();
+            finalY = PAGE_MARGIN;
+            addHeader(doc, doc.getNumberOfPages());
+      }
+      finalY = addParagraph("Acesse The Wealth Lab: https://wealthlab.com.br/", finalY, {size: 9, color: SECTION_TITLE_COLOR});
+
+      const totalFinalPages = doc.getNumberOfPages();
+      if (totalFinalPages > 0) {
+        let lastPageHandledByAutoTable = false;
+        if ((doc as any).lastAutoTable && (doc as any).lastAutoTable.pageNumber) {
+            lastPageHandledByAutoTable = ((doc as any).lastAutoTable.pageNumber === totalFinalPages);
         }
         
-        retirementSummary.forEach(item => {
-            doc.text(item, 14, finalY);
-            finalY += 6;
-        });
-        finalY += 4;
-
-        doc.setFontSize(12);
-        doc.text("Herança Estimada:", 14, finalY);
-        finalY += 7;
-        doc.setFontSize(10);
-        const inheritanceSummary = [
-            `Idade Considerada para Herança: 72 anos`,
-        ];
-        if (retirementAnalysisFullResults.projectedCapitalAt72 !== undefined) {
-           inheritanceSummary.push(`Herança Estimada aos 72 anos (após retiradas): ${formatCurrency(retirementAnalysisFullResults.projectedCapitalAt72)}`);
-        } else {
-           inheritanceSummary.push(`Herança Estimada aos 72 anos: Não aplicável ou simulação não atinge 72 anos.`);
+        if (!lastPageHandledByAutoTable && totalFinalPages === 1 && !(scenarioData.data && scenarioData.data.length > 0 && (doc as any).lastAutoTable)) {
+             doc.setPage(1);
+             if (finalY < 20 + 10) addHeader(doc, 1); 
+             addFooter(doc, 1, 1);
+        } else if (!lastPageHandledByAutoTable) { 
+            doc.setPage(totalFinalPages);
+            addFooter(doc, totalFinalPages, totalFinalPages);
         }
-        inheritanceSummary.forEach(item => {
-            doc.text(item, 14, finalY);
-            finalY += 6;
-        });
-        finalY += 4;
+      }
+
+      doc.save('TheWealthLab_Projecao.pdf');
+    } catch (e: any) {
+      console.error("Erro ao gerar PDF:", e);
+      alert(`Ocorreu um erro ao gerar o PDF: ${e.message}. Verifique o console para mais detalhes.`);
     }
-
-    doc.setFontSize(12);
-    doc.text("Detalhes da Projeção Anual:", 14, finalY);
-    finalY += 7;
-    
-    (doc as any).autoTable({ 
-        startY: finalY,
-        head: [['Ano', 'Idade', 'Saldo Inicial', 'Aportes Anuais', 'Retiradas Anuais', 'Juros Anuais', 'Saldo Final', 'Total Aportado', 'Total Retirado', 'Total Juros']],
-        body: scenarioData.data.map(row => [
-            row.year,
-            row.age !== undefined ? row.age : '-',
-            formatCurrency(row.initialBalance),
-            formatCurrency(row.totalContributions),
-            formatCurrency(row.totalWithdrawalsYearly || 0),
-            formatCurrency(row.totalInterestEarned),
-            formatCurrency(row.finalBalance),
-            formatCurrency(row.cumulativeContributions),
-            formatCurrency(row.cumulativeWithdrawals || 0),
-            formatCurrency(row.cumulativeInterest),
-        ]),
-        theme: 'striped',
-        headStyles: { fillColor: [22, 160, 133], fontSize: 8 }, 
-        bodyStyles: { fontSize: 7 },
-        columnStyles: { 
-            0: { cellWidth: 10 }, 1: { cellWidth: 10 }, 
-            2: { cellWidth: 25 }, 3: { cellWidth: 25 }, 
-            4: { cellWidth: 25 }, 5: { cellWidth: 25 }, 
-            6: { cellWidth: 25 }, 7: { cellWidth: 25 }, 
-            8: { cellWidth: 25 }, 9: { cellWidth: 25 }, 
-        },
-        didDrawPage: (data: any) => { 
-            finalY = data.cursor?.y || finalY;
-        }
-    });
-    
-    if ((doc as any).lastAutoTable && (doc as any).lastAutoTable.finalY) {
-      finalY = (doc as any).lastAutoTable.finalY;
-    }
-
-    if (finalY > pageHeight - 30) { 
-        doc.addPage();
-        finalY = 20; 
-    } else {
-        finalY += 10; 
-    }
-
-    doc.setFontSize(8);
-    doc.text("Observações:", 14, finalY);
-    finalY += 5;
-    const disclaimers = [
-        "Este é um relatório de simulação e não garante rentabilidade futura.",
-        "Os valores apresentados são projeções baseadas nos parâmetros informados.",
-        "Aportes são considerados mensais e a taxa de juros informada é anual (convertida para mensal nos cálculos).",
-         inputValues.enableAdvancedSimulation && inputValues.advancedSimModeSpecificContributions && inputValues.specificContributions && inputValues.specificContributions.length > 0 
-            ? "Aportes específicos foram incluídos na simulação." : "",
-        "Retiradas (se em modo aposentadoria) são mensais, baseadas na renda desejada e corrigidas pela inflação (se aplicável), até os 72 anos para cálculo de herança.",
-        "Consulte um profissional financeiro para decisões de investimento."
-    ].filter(d => d);
-    disclaimers.forEach(disc => {
-        const splitText = doc.splitTextToSize(disc, doc.internal.pageSize.width - 28); 
-        doc.text(splitText, 14, finalY);
-        finalY += (splitText.length * 4); 
-    });
-
-    doc.save('projecao_investimento.pdf');
   };
   
   const mainSummaryPoint = useMemo(() => {
@@ -432,6 +607,17 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ scenarioData, inputValu
                  )}
               </div>
             </div>
+             { (inputValues.enableAdvancedSimulation && inputValues.advancedSimModeRetirement && mainSummaryPoint.cumulativeWithdrawals !== undefined && mainSummaryPoint.cumulativeWithdrawals > 0) && (
+                <>
+                 <hr className="my-3 border-slate-200 dark:border-slate-700/60" />
+                 <div className="flex justify-between text-sm">
+                    <span className="text-slate-600 dark:text-slate-400">Total de Retiradas (durante simulação):</span>
+                    <span className="font-medium text-orange-600 dark:text-orange-400">
+                        {formatCurrency(mainSummaryPoint.cumulativeWithdrawals)}
+                    </span>
+                 </div>
+                </>
+             )}
           </Card.Content>
         </Card>
       )}
@@ -505,34 +691,7 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ scenarioData, inputValu
             </p>
           </Card.Content>
         </Card>
-
-        <Card className="mb-6 sm:mb-8 shadow-xl border-2 border-purple-500 dark:border-purple-400">
-            <Card.Header className="bg-purple-50 dark:bg-purple-900/30">
-                <Card.Title className="text-center text-purple-700 dark:text-purple-300">
-                    Herança Estimada
-                </Card.Title>
-            </Card.Header>
-            <Card.Content className="space-y-3 text-sm pt-5">
-                <div className="flex justify-between">
-                    <span className="text-slate-600 dark:text-slate-400">Idade Considerada para Herança:</span>
-                    <span className="font-medium text-slate-800 dark:text-slate-200">72 anos</span>
-                </div>
-                {retirementAnalysisFullResults.projectedCapitalAt72 !== undefined ? (
-                <div className="flex justify-between">
-                    <span className="text-slate-600 dark:text-slate-400">Patrimônio Estimado aos 72 anos:</span>
-                    <span className="font-medium text-slate-800 dark:text-slate-200">{formatCurrency(retirementAnalysisFullResults.projectedCapitalAt72)}</span>
-                </div>
-                ) : (
-                <div className="flex justify-between">
-                    <span className="text-slate-600 dark:text-slate-400">Patrimônio Estimado aos 72 anos:</span>
-                    <span className="font-medium text-slate-500 dark:text-slate-400 text-xs">Simulação não atinge 72 anos ou dado indisponível.</span>
-                </div>
-                )}
-                 <p className="text-xs text-slate-500 dark:text-slate-400 text-center pt-2">
-                    Este valor considera que, após a aposentadoria na idade alvo, são realizadas retiradas mensais (equivalentes à renda desejada e corrigidas pela inflação, se aplicável) até os 72 anos. Se a aposentadoria for após os 72, considera o saldo antes das retiradas.
-                </p>
-            </Card.Content>
-        </Card>
+        {/* "Herança Estimada" Card REMOVED from UI */}
         </>
       )}
 

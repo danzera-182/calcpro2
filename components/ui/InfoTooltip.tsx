@@ -1,51 +1,77 @@
-import React, { useState, useRef } from 'react';
+
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 
 interface InfoTooltipProps {
-  text: string;
+  text: React.ReactNode;
   children?: React.ReactNode;
   position?: 'top' | 'bottom' | 'left' | 'right';
+  className?: string; 
+  tooltipWidthClass?: string; 
 }
 
-const InfoIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
-  </svg>
+// New Default Styled Question Mark Icon
+const StyledQuestionMarkIcon: React.FC = () => (
+  <span 
+    className="inline-flex items-center justify-center w-5 h-5 border-2 border-blue-500 dark:border-blue-400 rounded-sm bg-transparent group-hover:bg-blue-50 dark:group-hover:bg-blue-700/30 transition-colors"
+    aria-hidden="true"
+  >
+    <span className="font-bold text-sm text-blue-500 dark:text-blue-400 group-hover:text-blue-600 dark:group-hover:text-blue-300">
+      ?
+    </span>
+  </span>
 );
 
-const InfoTooltip: React.FC<InfoTooltipProps> = ({ text, children, position = 'top' }) => {
+
+const InfoTooltip: React.FC<InfoTooltipProps> = ({ 
+  text, 
+  children, 
+  position = 'top', 
+  className = "relative inline-flex items-center align-middle", // Adjusted default class for better alignment
+  tooltipWidthClass = "max-w-md" 
+}) => {
   const [isVisible, setIsVisible] = useState(false);
   const timeoutRef = useRef<number | null>(null);
+  const triggerRef = useRef<HTMLSpanElement>(null);
+  const tooltipRef = useRef<HTMLSpanElement>(null);
 
-  const showTooltip = () => {
+  const showTooltip = useCallback(() => {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
     }
     setIsVisible(true);
-  };
+  }, []);
 
-  const hideTooltip = (immediate = false) => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-    }
-    if (immediate) {
-        setIsVisible(false);
-    } else {
-        timeoutRef.current = window.setTimeout(() => {
-          setIsVisible(false);
-        }, 200); // Small delay to allow mouse travel to tooltip
-    }
-  };
+  const hideTooltip = useCallback(() => {
+    timeoutRef.current = window.setTimeout(() => {
+      setIsVisible(false);
+    }, 200); 
+  }, []);
   
-  const handleTooltipMouseEnter = () => {
+  const handleTooltipInteractionEnter = useCallback(() => {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
     }
-  };
+  }, []);
 
-  const handleTooltipMouseLeave = () => {
+  const handleTooltipInteractionLeave = useCallback(() => {
     hideTooltip();
-  };
-  
+  }, [hideTooltip]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (isVisible && 
+          triggerRef.current && !triggerRef.current.contains(event.target as Node) &&
+          tooltipRef.current && !tooltipRef.current.contains(event.target as Node)) {
+        setIsVisible(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, [isVisible]);
+
 
   let positionClasses = '';
   switch (position) {
@@ -65,22 +91,25 @@ const InfoTooltip: React.FC<InfoTooltipProps> = ({ text, children, position = 't
 
   return (
     <span 
-      className="relative inline-flex items-center" 
+      ref={triggerRef}
+      className={`${className} group`} // Added group for hover effects on the icon
       onMouseEnter={showTooltip} 
-      onMouseLeave={() => hideTooltip()}
+      onMouseLeave={hideTooltip}
       onFocus={showTooltip}
-      onBlur={() => hideTooltip(true)} // Hide immediately on blur
-      tabIndex={0} // Make it focusable
+      onBlur={hideTooltip} 
+      tabIndex={0} 
       role="tooltip"
-      aria-describedby={isVisible ? `tooltip-text-${text.substring(0,10)}` : undefined}
+      aria-describedby={isVisible ? `tooltip-text-${String(text).substring(0,10)}` : undefined}
     >
-      {children || <InfoIcon className="text-gray-400 dark:text-gray-500 hover:text-blue-500 dark:hover:text-blue-400" />}
+      {children || <StyledQuestionMarkIcon />} {/* Use new default icon */}
       {isVisible && (
         <span
-          id={`tooltip-text-${text.substring(0,10)}`}
-          className={`absolute ${positionClasses} w-max max-w-xs p-2 text-xs text-white bg-gray-700 dark:bg-slate-800 rounded-md shadow-lg z-10 whitespace-normal`}
-          onMouseEnter={handleTooltipMouseEnter}
-          onMouseLeave={handleTooltipMouseLeave}
+          ref={tooltipRef}
+          id={`tooltip-text-${String(text).substring(0,10)}`}
+          role="document"
+          className={`absolute ${positionClasses} ${tooltipWidthClass} p-3 text-xs text-white bg-slate-700 dark:bg-slate-800 rounded-lg shadow-xl z-20 whitespace-normal ring-1 ring-slate-600 dark:ring-slate-700`}
+          onMouseEnter={handleTooltipInteractionEnter}
+          onMouseLeave={handleTooltipInteractionLeave}
         >
           {text}
         </span>

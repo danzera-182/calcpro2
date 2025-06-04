@@ -74,8 +74,10 @@ export const AVAILABLE_TERMINAL_INDICATORS: AvailableIndicatorForTerminal[] = [
   { id: 'IBCBR_INDEX', name: 'IBC-Br (Índice)', sgsCode: 24364, historicalYAxisLabel: 'Índice (Base: 2002=100)', dataKey: 'ibcbrIndexValue', defaultChartColor: '#CA8A04' }, // Yellow 600
   { id: 'RESERVAS_USD', name: 'Reservas (Milhões USD)', sgsCode: 13621, historicalYAxisLabel: 'Milhões USD', isDailyData: true, dataKey: 'reservasUsdValue', defaultChartColor: '#059669' }, // Emerald 600
   { id: 'OURO_RESERVAS_USD', name: 'Ouro Reservas (Milhões USD)', sgsCode: 3552, historicalYAxisLabel: 'Milhões USD', dataKey: 'ouroReservasUsdValue', defaultChartColor: '#D97706' }, // Amber 600
-  // Additional indicators:
   { id: 'IPCA_ACCUM12M', name: 'IPCA (Acum. 12M %)', sgsCode: 13522, historicalYAxisLabel: 'Acum. %', dataKey: 'ipcaAccum12mValue', defaultChartColor: '#FACC15' }, // Yellow 400 (brighter)
+  { id: 'PIB_MENSAL_VC', name: 'PIB Mensal (R$ Milhões)', sgsCode: 4380, historicalYAxisLabel: 'R$ Milhões', dataKey: 'pibMensalVcValue', defaultChartColor: '#6D28D9' }, // Violet 700
+  { id: 'PIB_ACCUM_ANO_VC', name: 'PIB Acum. Ano (R$ Milhões)', sgsCode: 4381, historicalYAxisLabel: 'R$ Milhões', dataKey: 'pibAccumAnoVcValue', defaultChartColor: '#BE185D' }, // Pink 700
+  { id: 'PIB_ACCUM_12M_VC', name: 'PIB Acum. 12M (R$ Milhões)', sgsCode: 4382, historicalYAxisLabel: 'R$ Milhões', dataKey: 'pibAccum12mVcValue', defaultChartColor: '#047857' }, // Emerald 700
 ];
 
 // For Terminal Chart Display
