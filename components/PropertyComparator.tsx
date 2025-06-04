@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback } from 'react';
 import { Card } from './ui/Card';
 import Button from './ui/Button';
@@ -6,7 +5,8 @@ import FormattedNumericInput from './ui/FormattedNumericInput';
 import InfoTooltip from './ui/InfoTooltip';
 import { PropertyComparatorInputs, PropertyComparisonResults, PropertyScenarioOutput } from '../types';
 import { calculatePropertyComparison } from '../utils/propertyCalculations';
-import { formatCurrency, formatNumberForDisplay } from '../utils/formatters';
+import { formatCurrency } from '../utils/formatters';
+import PropertyCalculationDetailModal from './PropertyCalculationDetailModal'; // New Import
 
 const DEFAULT_PROPERTY_COMPARATOR_INPUTS: PropertyComparatorInputs = {
   propertyValue: 300000,
@@ -122,6 +122,7 @@ const PropertyComparator: React.FC = () => {
   const [inputs, setInputs] = useState<PropertyComparatorInputs>(DEFAULT_PROPERTY_COMPARATOR_INPUTS);
   const [results, setResults] = useState<PropertyComparisonResults | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState<boolean>(false);
 
   const handleInputChange = useCallback((name: keyof PropertyComparatorInputs, value: number | null) => {
     setInputs(prev => ({ ...prev, [name]: value }));
@@ -160,6 +161,7 @@ const PropertyComparator: React.FC = () => {
   const handleClear = () => {
     setInputs(DEFAULT_PROPERTY_COMPARATOR_INPUTS);
     setResults(null);
+    setIsDetailModalOpen(false);
   };
   
   const inputGroups = [
@@ -252,34 +254,52 @@ const PropertyComparator: React.FC = () => {
       )}
 
       {!isLoading && results && (
-        <Card>
-          <Card.Header>
-            <Card.Title className="text-xl sm:text-2xl text-center">Resultado da Análise ({results.analysisPeriodYears} anos)</Card.Title>
-          </Card.Header>
-          <Card.Content className="space-y-6">
-            <div className={`p-4 rounded-lg text-center ${
-                results.bestOption !== 'insufficientData' && results.bestOption !== 'comparable' 
-                ? 'bg-green-50 dark:bg-green-900/40' 
-                : 'bg-slate-100 dark:bg-slate-800/40'
-            }`}>
-              <p className={`text-lg font-semibold ${
-                results.bestOption !== 'insufficientData' && results.bestOption !== 'comparable' 
-                ? 'text-green-700 dark:text-green-200' 
-                : 'text-slate-700 dark:text-slate-200'
+        <>
+          <Card>
+            <Card.Header>
+              <Card.Title className="text-xl sm:text-2xl text-center">Resultado da Análise ({results.analysisPeriodYears} anos)</Card.Title>
+            </Card.Header>
+            <Card.Content className="space-y-6">
+              <div className={`p-4 rounded-lg text-center ${
+                  results.bestOption !== 'insufficientData' && results.bestOption !== 'comparable' 
+                  ? 'bg-green-50 dark:bg-green-900/40' 
+                  : 'bg-slate-100 dark:bg-slate-800/40'
               }`}>
-                {results.recommendationText}
+                <p className={`text-lg font-semibold ${
+                  results.bestOption !== 'insufficientData' && results.bestOption !== 'comparable' 
+                  ? 'text-green-700 dark:text-green-200' 
+                  : 'text-slate-700 dark:text-slate-200'
+                }`}>
+                  {results.recommendationText}
+                </p>
+              </div>
+              <div className="flex flex-col lg:flex-row gap-4 justify-center items-stretch">
+                <ResultsCard result={results.buyOnly} scenarioType="buyOnly" isBest={results.bestOption === 'buyOnly'} />
+                <ResultsCard result={results.buyAndInvest} scenarioType="buyAndInvest" isBest={results.bestOption === 'buyAndInvest'} />
+                <ResultsCard result={results.rentAndInvest} scenarioType="rentAndInvest" isBest={results.bestOption === 'rentAndInvest'} />
+              </div>
+              <div className="mt-6 text-center">
+                <Button
+                    onClick={() => setIsDetailModalOpen(true)}
+                    variant="secondary"
+                    size="md"
+                >
+                    Detalhar Cálculo
+                </Button>
+              </div>
+               <p className="text-xs text-slate-500 dark:text-slate-400 text-center pt-2">
+                  Esta é uma simulação simplificada e não considera todos os fatores (ex: custos de manutenção do imóvel, imposto de renda sobre investimentos e ganhos de capital, liquidez, etc.). Consulte um profissional para decisões financeiras.
               </p>
-            </div>
-            <div className="flex flex-col lg:flex-row gap-4 justify-center items-stretch">
-              <ResultsCard result={results.buyOnly} scenarioType="buyOnly" isBest={results.bestOption === 'buyOnly'} />
-              <ResultsCard result={results.buyAndInvest} scenarioType="buyAndInvest" isBest={results.bestOption === 'buyAndInvest'} />
-              <ResultsCard result={results.rentAndInvest} scenarioType="rentAndInvest" isBest={results.bestOption === 'rentAndInvest'} />
-            </div>
-             <p className="text-xs text-slate-500 dark:text-slate-400 text-center pt-2">
-                Esta é uma simulação simplificada e não considera todos os fatores (ex: custos de manutenção do imóvel, imposto de renda sobre investimentos e ganhos de capital, liquidez, etc.). Consulte um profissional para decisões financeiras.
-            </p>
-          </Card.Content>
-        </Card>
+            </Card.Content>
+          </Card>
+          {isDetailModalOpen && (
+            <PropertyCalculationDetailModal
+              isOpen={isDetailModalOpen}
+              onClose={() => setIsDetailModalOpen(false)}
+              results={results}
+            />
+          )}
+        </>
       )}
     </div>
   );

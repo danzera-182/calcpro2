@@ -36,16 +36,15 @@ export const calculateProjection = (params: CalculationParams): CalculationResul
 
   let actualInvestmentPeriodYears = originalInvestmentPeriodYears;
   let simulationEndAge = (currentAge || 0) + originalInvestmentPeriodYears;
-  const retirementTargetAge = targetAge || ((currentAge || 0) + originalInvestmentPeriodYears); // Default to end of period if not specified
+  const retirementTargetAge = targetAge || ((currentAge || 0) + originalInvestmentPeriodYears); 
 
   if (enableAdvancedSimulation && advancedSimModeRetirement && currentAge) {
-    simulationEndAge = Math.max(retirementTargetAge, 72); // Simulate at least up to age 72 for inheritance
+    simulationEndAge = Math.max(retirementTargetAge, 72); 
     actualInvestmentPeriodYears = simulationEndAge - currentAge;
   }
 
 
   if (actualInvestmentPeriodYears <= 0 && !(enableAdvancedSimulation && advancedSimModeRetirement && currentAge && simulationEndAge > currentAge)) {
-    // Allow simulation even if period is 0 but we need to project to age 72
      if (!(enableAdvancedSimulation && advancedSimModeRetirement && currentAge && simulationEndAge > currentAge && currentAge < simulationEndAge)) {
       return { yearly: [], monthly: [] };
     }
@@ -92,7 +91,7 @@ export const calculateProjection = (params: CalculationParams): CalculationResul
                                ? currentAge + currentYearForMonth -1 
                                : undefined; 
     const investorAgeAtMonthEnd = (enableAdvancedSimulation && advancedSimModeRetirement && currentAge)
-                               ? currentAge + Math.floor((currentGlobalMonth -1) / 12)
+                               ? currentAge + Math.floor((currentGlobalMonth -1) / 12) // This is age at end of previous month, effectively start of current month for age check
                                : undefined;
 
 
@@ -104,73 +103,66 @@ export const calculateProjection = (params: CalculationParams): CalculationResul
     cumulativeInterest += interestForMonth;
     yearInterest += interestForMonth;
     
+    let actualMonthlyContribution = 0;
+    let specificContributionThisMonthAmount = 0;
     let monthlyWithdrawalAmount = 0;
-    const isPostRetirementPhase = enableAdvancedSimulation && advancedSimModeRetirement && currentAge && investorAgeAtStartOfYear !== undefined && investorAgeAtStartOfYear >= retirementTargetAge;
-    const isBeforeAge72ForInheritanceWithdrawal = enableAdvancedSimulation && advancedSimModeRetirement && currentAge && investorAgeAtStartOfYear !== undefined && investorAgeAtStartOfYear < 72;
 
-    if (isPostRetirementPhase && isBeforeAge72ForInheritanceWithdrawal && desiredMonthlyIncomeToday && desiredMonthlyIncomeToday > 0) {
-        let currentDesiredMonthlyIncome = desiredMonthlyIncomeToday;
-        if (adjustContributionsForInflation && annualInflationRateDecimal > 0 && currentAge) {
-            const yearsSinceBase = investorAgeAtStartOfYear - currentAge;
-            currentDesiredMonthlyIncome = desiredMonthlyIncomeToday * Math.pow(1 + annualInflationRateDecimal, yearsSinceBase);
-        }
-        monthlyWithdrawalAmount = currentDesiredMonthlyIncome;
-        currentBalance -= monthlyWithdrawalAmount;
-        yearWithdrawals += monthlyWithdrawalAmount;
-        cumulativeWithdrawals += monthlyWithdrawalAmount;
-    } else {
-        // Regular monthly contribution (only if not in withdrawal phase or not retirement sim)
-        let actualMonthlyContribution = initialMonthlyContribution;
+    const isPreRetirementPhase = !(enableAdvancedSimulation && advancedSimModeRetirement && currentAge && investorAgeAtStartOfYear !== undefined && investorAgeAtStartOfYear >= retirementTargetAge);
+
+    if (isPreRetirementPhase) {
+        // Regular monthly contribution
+        actualMonthlyContribution = initialMonthlyContribution;
         if (enableAdvancedSimulation && adjustContributionsForInflation && annualInflationRateDecimal > 0 && currentYearForMonth > 1) {
-        actualMonthlyContribution = initialMonthlyContribution * Math.pow(1 + annualInflationRateDecimal, currentYearForMonth - 1);
+            actualMonthlyContribution = initialMonthlyContribution * Math.pow(1 + annualInflationRateDecimal, currentYearForMonth - 1);
         }
-        
         currentBalance += actualMonthlyContribution;
         cumulativeContributionsOnly += actualMonthlyContribution;
         yearContributions += actualMonthlyContribution;
         
-        // Specific contributions for this month (only if not in withdrawal phase)
-        let specificContributionThisMonthAmount = 0;
+        // Specific contributions for this month
         if (advancedSimModeSpecificContributions && sortedSpecificContributions) {
-        while (specificContributionIndex < sortedSpecificContributions.length &&
-                sortedSpecificContributions[specificContributionIndex].year === currentYearForMonth &&
-                sortedSpecificContributions[specificContributionIndex].month === currentMonthInYear) {
-            const specContrib = sortedSpecificContributions[specificContributionIndex];
-            currentBalance += specContrib.amount;
-            cumulativeContributionsOnly += specContrib.amount; 
-            yearContributions += specContrib.amount;
-            specificContributionThisMonthAmount += specContrib.amount;
-            specificContributionIndex++;
+            while (specificContributionIndex < sortedSpecificContributions.length &&
+                   sortedSpecificContributions[specificContributionIndex].year === currentYearForMonth &&
+                   sortedSpecificContributions[specificContributionIndex].month === currentMonthInYear) {
+                const specContrib = sortedSpecificContributions[specificContributionIndex];
+                currentBalance += specContrib.amount;
+                cumulativeContributionsOnly += specContrib.amount; 
+                yearContributions += specContrib.amount;
+                specificContributionThisMonthAmount += specContrib.amount;
+                specificContributionIndex++;
+            }
         }
+    } else { // Post-Retirement Phase
+        const isBeforeAge72ForInheritanceWithdrawal = enableAdvancedSimulation && advancedSimModeRetirement && currentAge && investorAgeAtStartOfYear !== undefined && investorAgeAtStartOfYear < 72;
+        
+        if (isBeforeAge72ForInheritanceWithdrawal && desiredMonthlyIncomeToday && desiredMonthlyIncomeToday > 0) {
+            let currentDesiredMonthlyIncome = desiredMonthlyIncomeToday;
+            if (adjustContributionsForInflation && annualInflationRateDecimal > 0 && currentAge && investorAgeAtStartOfYear !== undefined) { // Check investorAgeAtStartOfYear for safety
+                const yearsSinceBase = investorAgeAtStartOfYear - currentAge;
+                currentDesiredMonthlyIncome = desiredMonthlyIncomeToday * Math.pow(1 + annualInflationRateDecimal, yearsSinceBase);
+            }
+            monthlyWithdrawalAmount = currentDesiredMonthlyIncome;
+
+            // It's possible that balance becomes negative if withdrawals exceed it. This is allowed.
+            currentBalance -= monthlyWithdrawalAmount;
+            yearWithdrawals += monthlyWithdrawalAmount;
+            cumulativeWithdrawals += monthlyWithdrawalAmount;
         }
-         monthlyProjection.push({
-            globalMonth: currentGlobalMonth,
-            year: currentYearForMonth,
-            monthInYear: currentMonthInYear,
-            initialBalanceMonthly: initialBalanceForThisMonth,
-            contributionMonthly: actualMonthlyContribution,
-            specificContributionThisMonth: specificContributionThisMonthAmount,
-            interestEarnedMonthly: interestForMonth,
-            finalBalanceMonthly: currentBalance,
-            age: investorAgeAtMonthEnd,
-            withdrawalMonthly: 0, // No withdrawal if contributing
-        });
+        // If no withdrawal condition met (e.g., income is 0, or age >= 72), balance just accrues interest from above.
     }
     
-    if (monthlyWithdrawalAmount > 0) { // Log withdrawal if it happened
-        monthlyProjection.push({
-            globalMonth: currentGlobalMonth,
-            year: currentYearForMonth,
-            monthInYear: currentMonthInYear,
-            initialBalanceMonthly: initialBalanceForThisMonth, // This should be balance *before* interest if withdrawal is post-interest
-            contributionMonthly: 0,
-            specificContributionThisMonth: 0,
-            interestEarnedMonthly: interestForMonth,
-            withdrawalMonthly: monthlyWithdrawalAmount,
-            finalBalanceMonthly: currentBalance, // Balance after interest and withdrawal
-            age: investorAgeAtMonthEnd,
-        });
-    }
+    monthlyProjection.push({
+        globalMonth: currentGlobalMonth,
+        year: currentYearForMonth,
+        monthInYear: currentMonthInYear,
+        initialBalanceMonthly: initialBalanceForThisMonth,
+        contributionMonthly: actualMonthlyContribution,
+        specificContributionThisMonth: specificContributionThisMonthAmount,
+        interestEarnedMonthly: interestForMonth,
+        withdrawalMonthly: monthlyWithdrawalAmount,
+        finalBalanceMonthly: currentBalance,
+        age: investorAgeAtMonthEnd,
+    });
 
 
     if (month % 12 === 0 || month === totalMonths) {
@@ -193,9 +185,6 @@ export const calculateProjection = (params: CalculationParams): CalculationResul
       yearWithdrawals = 0;
     }
   }
-
-  // Ensure the last partial year is included if totalMonths isn't a multiple of 12
-  // This case should be handled by the loop condition `month === totalMonths` already.
 
   return { yearly: yearlyProjection, monthly: monthlyProjection };
 };

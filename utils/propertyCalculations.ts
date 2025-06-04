@@ -1,5 +1,4 @@
-
-import { PropertyComparatorInputs, PropertyComparisonResults, PropertyScenarioOutput } from '../types';
+import { PropertyComparatorInputs, PropertyComparisonResults, PropertyScenarioOutput, PropertyCalculationMonthDetail, PropertyCalculationYearDetail } from '../types';
 import { formatCurrency } from '../utils/formatters';
 
 interface SACFinancingDetails {
@@ -8,6 +7,8 @@ interface SACFinancingDetails {
   totalPrincipalPaid: number;
   firstInstallment: number;
   lastInstallment: number;
+  monthlyPrincipalPayments: number[];
+  monthlyInterestPayments: number[];
 }
 
 // Helper: Calculate SAC Financing Details
@@ -17,26 +18,32 @@ const calculateFinancingDetailsSAC = (
   termMonths: number
 ): SACFinancingDetails => {
   if (loanPrincipal <= 0 || termMonths <= 0) {
-    return { monthlyInstallments: Array(termMonths || 0).fill(0), totalInterestPaid: 0, totalPrincipalPaid: 0, firstInstallment: 0, lastInstallment: 0 };
+    return { 
+        monthlyInstallments: Array(termMonths || 0).fill(0), 
+        totalInterestPaid: 0, 
+        totalPrincipalPaid: 0, 
+        firstInstallment: 0, 
+        lastInstallment: 0,
+        monthlyPrincipalPayments: Array(termMonths || 0).fill(0),
+        monthlyInterestPayments: Array(termMonths || 0).fill(0),
+    };
   }
   
-  // Handle extremely low or effectively -100% annual rates that make monthly rate problematic
-  if (annualInterestRatePercent < -99.9999) { // Using a threshold to avoid precision issues leading to monthlyRate = -1
-      // If rate is essentially -100% or less, implies loan might be 'paid back' by lender or complex.
-      // For simplicity, assume zero payment or handle as error case. Here, returning large values to signify issue.
+  if (annualInterestRatePercent < -99.9999) { 
       const errorInstallment = loanPrincipal > 0 ? Infinity : 0;
       return { 
           monthlyInstallments: Array(termMonths).fill(errorInstallment), 
           totalInterestPaid: Infinity, 
           totalPrincipalPaid: loanPrincipal, 
           firstInstallment: errorInstallment, 
-          lastInstallment: errorInstallment 
+          lastInstallment: errorInstallment,
+          monthlyPrincipalPayments: Array(termMonths).fill(loanPrincipal / termMonths), // Distributes principal if possible
+          monthlyInterestPayments: Array(termMonths).fill(Infinity),
       };
   }
 
   const monthlyInterestRate = Math.pow(1 + annualInterestRatePercent / 100, 1 / 12) - 1;
 
-  // If monthly rate makes payments undefined or infinite (e.g. rate = -100% monthly)
   if (monthlyInterestRate <= -1 && loanPrincipal > 0) {
       const errorInstallment = Infinity;
        return { 
@@ -44,23 +51,28 @@ const calculateFinancingDetailsSAC = (
           totalInterestPaid: Infinity, 
           totalPrincipalPaid: loanPrincipal, 
           firstInstallment: errorInstallment, 
-          lastInstallment: errorInstallment 
+          lastInstallment: errorInstallment,
+          monthlyPrincipalPayments: Array(termMonths).fill(loanPrincipal / termMonths),
+          monthlyInterestPayments: Array(termMonths).fill(Infinity),
       };
   }
-
 
   const principalAmortizationPerMonth = loanPrincipal / termMonths;
   let outstandingBalance = loanPrincipal;
   let totalInterestPaid = 0;
   const monthlyInstallments: number[] = [];
+  const monthlyPrincipalPayments: number[] = [];
+  const monthlyInterestPayments: number[] = [];
+
 
   for (let i = 0; i < termMonths; i++) {
     const interestForMonth = outstandingBalance * monthlyInterestRate;
     const installment = principalAmortizationPerMonth + interestForMonth;
     
     monthlyInstallments.push(installment);
+    monthlyPrincipalPayments.push(principalAmortizationPerMonth);
+    monthlyInterestPayments.push(interestForMonth);
     totalInterestPaid += interestForMonth;
-    // Ensure balance doesn't go below zero due to floating point arithmetic, especially with negative rates.
     outstandingBalance = Math.max(0, outstandingBalance - principalAmortizationPerMonth);
   }
 
@@ -70,6 +82,8 @@ const calculateFinancingDetailsSAC = (
     totalPrincipalPaid: loanPrincipal,
     firstInstallment: monthlyInstallments[0] || 0,
     lastInstallment: monthlyInstallments[monthlyInstallments.length - 1] || 0,
+    monthlyPrincipalPayments,
+    monthlyInterestPayments,
   };
 };
 
@@ -88,13 +102,58 @@ const calculateFutureValue = (
   }
   
   if (monthlyRate <= -1) { 
-      return presentValue * Math.pow(1 + monthlyRate, numMonths) + monthlyPayment * numMonths; // Simplified: PMTs not compounded if rate is -100%
+      return presentValue * Math.pow(1 + monthlyRate, numMonths) + monthlyPayment * numMonths;
   }
 
   const fvFromPv = presentValue * Math.pow(1 + monthlyRate, numMonths);
   const fvFromPmt = monthlyPayment * ( (Math.pow(1 + monthlyRate, numMonths) - 1) / monthlyRate );
   
   return fvFromPv + fvFromPmt;
+};
+
+
+const deriveYearlyBreakdownFromMonthly = (
+    monthlyBreakdown: PropertyCalculationMonthDetail[],
+    scenarioType: 'buyOnly' | 'buyAndInvest' | 'rentAndInvest'
+): PropertyCalculationYearDetail[] => {
+    if (!monthlyBreakdown || monthlyBreakdown.length === 0) return [];
+
+    const yearlyMap = new Map<number, Partial<PropertyCalculationYearDetail>>();
+
+    monthlyBreakdown.forEach(monthDetail => {
+        if (!yearlyMap.has(monthDetail.year)) {
+            yearlyMap.set(monthDetail.year, { year: monthDetail.year });
+        }
+        const yearEntry = yearlyMap.get(monthDetail.year)!;
+
+        if (scenarioType === 'buyOnly' || scenarioType === 'buyAndInvest') {
+            yearEntry.buyOnly_totalMortgagePaid_year = (yearEntry.buyOnly_totalMortgagePaid_year || 0) + (monthDetail.mortgagePayment_month || 0);
+             if (scenarioType === 'buyAndInvest') {
+                yearEntry.buyAndInvest_totalMortgagePaid_year = yearEntry.buyOnly_totalMortgagePaid_year; // same mortgage
+                yearEntry.buyAndInvest_parallelInvestmentContribution_year = (yearEntry.buyAndInvest_parallelInvestmentContribution_year || 0) + (monthDetail.parallelInvestmentContribution_month || 0);
+            }
+        } else if (scenarioType === 'rentAndInvest') {
+            yearEntry.rentAndInvest_totalRentPaid_year = (yearEntry.rentAndInvest_totalRentPaid_year || 0) + (monthDetail.rentPaid_month || 0);
+            yearEntry.rentAndInvest_totalInvestmentContribution_year = (yearEntry.rentAndInvest_totalInvestmentContribution_year || 0) + (monthDetail.investmentContribution_month || 0);
+        }
+
+        if (monthDetail.monthInYear === 12 || monthDetail.monthGlobal === monthlyBreakdown[monthlyBreakdown.length - 1].monthGlobal) {
+            if (scenarioType === 'buyOnly') {
+                yearEntry.buyOnly_propertyValue_eoy = monthDetail.currentPropertyValue_eom;
+                yearEntry.buyOnly_loanBalance_eoy = monthDetail.loanBalance_eom;
+                yearEntry.buyOnly_netWorth_eoy = monthDetail.netWorth_eom;
+            } else if (scenarioType === 'buyAndInvest') {
+                yearEntry.buyAndInvest_propertyValue_eoy = monthDetail.currentPropertyValue_eom;
+                yearEntry.buyAndInvest_loanBalance_eoy = monthDetail.loanBalance_eom;
+                yearEntry.buyAndInvest_parallelInvestmentBalance_eoy = monthDetail.parallelInvestmentBalance_eom;
+                yearEntry.buyAndInvest_netWorth_eoy = monthDetail.netWorth_eom;
+            } else if (scenarioType === 'rentAndInvest') {
+                yearEntry.rentAndInvest_investmentBalance_eoy = monthDetail.investmentBalance_eom;
+                yearEntry.rentAndInvest_netWorth_eoy = monthDetail.netWorth_eom;
+            }
+        }
+    });
+    return Array.from(yearlyMap.values()) as PropertyCalculationYearDetail[];
 };
 
 
@@ -112,108 +171,160 @@ export const calculatePropertyComparison = (inputs: PropertyComparatorInputs): P
     additionalMonthlyInvestmentIfBuying = 0,
   } = inputs;
 
-  const analysisPeriodYears = (financingTermMonths || 1) / 12;
   const analysisPeriodMonths = financingTermMonths || 1;
+  const analysisPeriodYears = analysisPeriodMonths / 12;
 
   const loanAmount = Math.max(0, propertyValue - downPayment);
   const financingDetailsSAC = calculateFinancingDetailsSAC(loanAmount, annualInterestRatePercent, analysisPeriodMonths);
   
-  let finalPropertyValue_BuyOnly = propertyValue;
-  for (let year = 0; year < analysisPeriodYears; year++) {
-    finalPropertyValue_BuyOnly *= (1 + (annualPropertyAppreciationPercent / 100));
+  const totalInitialCashOutlay_BuyScenarios = downPayment + financingCosts;
+  const monthlyInvestmentRate = Math.pow(1 + annualInvestmentReturnPercent / 100, 1/12) -1;
+  const monthlyPropertyAppreciationRate = Math.pow(1 + annualPropertyAppreciationPercent / 100, 1/12) - 1;
+  const monthlyRentIncreaseRate = Math.pow(1 + annualRentIncreasePercent / 100, 1/12) - 1;
+
+  // --- Detailed Monthly Breakdowns ---
+  const buyOnlyBreakdown: PropertyCalculationMonthDetail[] = [];
+  const buyAndInvestBreakdown: PropertyCalculationMonthDetail[] = [];
+  const rentAndInvestBreakdown: PropertyCalculationMonthDetail[] = [];
+
+  let currentPropertyValue = propertyValue;
+  let currentLoanBalance = loanAmount;
+  let currentParallelInvestmentBalance = 0; // For Buy & Invest
+  let currentRentInvestmentBalance = totalInitialCashOutlay_BuyScenarios; // For Rent & Invest, starts with saved downpayment/costs
+  let currentMonthlyRent = monthlyRent;
+  
+  for (let m = 0; m < analysisPeriodMonths; m++) {
+    const monthGlobal = m + 1;
+    const year = Math.floor(m / 12) + 1;
+    const monthInYear = (m % 12) + 1;
+
+    // Update property value and rent (annually, applied monthly for smoother curve if needed, or just EOY)
+    // For simplicity in monthly breakdown, let's apply appreciation at month end for property value
+    // and rent increase check at start of month if monthInYear is 1 and year > 1
+    if (monthInYear === 1 && year > 1) {
+        currentMonthlyRent *= (1 + annualRentIncreasePercent / 100); // Rent increases annually
+    }
+    let nextPropertyValue = currentPropertyValue * (1 + monthlyPropertyAppreciationRate);
+
+
+    // --- Buy Only Scenario ---
+    const principalPaid_m = financingDetailsSAC.monthlyPrincipalPayments[m] || 0;
+    const interestPaid_m = financingDetailsSAC.monthlyInterestPayments[m] || 0;
+    const mortgagePayment_m = financingDetailsSAC.monthlyInstallments[m] || 0;
+    currentLoanBalance = Math.max(0, currentLoanBalance - principalPaid_m);
+    const buyOnlyNetWorth_eom = nextPropertyValue - currentLoanBalance;
+    buyOnlyBreakdown.push({
+      monthGlobal, year, monthInYear,
+      currentPropertyValue_eom: nextPropertyValue,
+      mortgagePayment_month: mortgagePayment_m,
+      principalPaid_month: principalPaid_m,
+      interestPaid_month: interestPaid_m,
+      loanBalance_eom: currentLoanBalance,
+      netWorth_eom: buyOnlyNetWorth_eom,
+    });
+
+    // --- Buy and Invest Scenario ---
+    let nextParallelInvestmentBalance = currentParallelInvestmentBalance * (1 + monthlyInvestmentRate);
+    if (additionalMonthlyInvestmentIfBuying > 0) {
+      nextParallelInvestmentBalance += additionalMonthlyInvestmentIfBuying;
+    }
+    const buyAndInvestNetWorth_eom = nextPropertyValue - currentLoanBalance + nextParallelInvestmentBalance;
+    buyAndInvestBreakdown.push({
+      monthGlobal, year, monthInYear,
+      currentPropertyValue_eom: nextPropertyValue,
+      mortgagePayment_month: mortgagePayment_m,
+      principalPaid_month: principalPaid_m,
+      interestPaid_month: interestPaid_m,
+      loanBalance_eom: currentLoanBalance,
+      parallelInvestmentContribution_month: additionalMonthlyInvestmentIfBuying,
+      parallelInvestmentBalance_eom: nextParallelInvestmentBalance,
+      netWorth_eom: buyAndInvestNetWorth_eom,
+    });
+
+    // --- Rent and Invest Scenario ---
+    let nextRentInvestmentBalance = currentRentInvestmentBalance * (1 + monthlyInvestmentRate);
+    const avoidedMortgagePayment = mortgagePayment_m; // SAC payment for this month
+    const investmentDiff = avoidedMortgagePayment - currentMonthlyRent;
+    nextRentInvestmentBalance += investmentDiff;
+    rentAndInvestBreakdown.push({
+      monthGlobal, year, monthInYear,
+      rentPaid_month: currentMonthlyRent,
+      investmentContribution_month: investmentDiff,
+      investmentBalance_eom: nextRentInvestmentBalance,
+      netWorth_eom: nextRentInvestmentBalance, // Net worth is just the investment balance
+    });
+    
+    // Update EOM values for next iteration
+    currentPropertyValue = nextPropertyValue; // Property value updates monthly for smoother tracking
+    currentParallelInvestmentBalance = nextParallelInvestmentBalance;
+    currentRentInvestmentBalance = nextRentInvestmentBalance;
   }
 
-  const totalFinancingCost_BuyOnly = loanAmount + financingDetailsSAC.totalInterestPaid;
-  const totalInitialCashOutlay_BuyOnly = downPayment + financingCosts;
+  const finalPropertyValue_eop = buyOnlyBreakdown[analysisPeriodMonths-1]?.currentPropertyValue_eom || 0;
+  const totalFinancingPaid_eop = loanAmount + financingDetailsSAC.totalInterestPaid;
+  const buyOnly_eop_NetWorth = buyOnlyBreakdown[analysisPeriodMonths-1]?.netWorth_eom || 0;
   
   const buyOnlyDetails: string[] = [
     `Financiamento pelo Sistema SAC.`,
     `Primeira parcela: ${formatCurrency(financingDetailsSAC.firstInstallment)}.`,
     `Última parcela: ${formatCurrency(financingDetailsSAC.lastInstallment)}.`,
     `Valor do imóvel após ${analysisPeriodYears} anos.`,
-    `Custo total (financiamento + custos iniciais): ${formatCurrency(totalFinancingCost_BuyOnly + totalInitialCashOutlay_BuyOnly)}.`,
+    `Custo total (financiamento + custos iniciais): ${formatCurrency(totalFinancingPaid_eop + totalInitialCashOutlay_BuyScenarios)}.`,
   ];
-
   const buyOnly: PropertyScenarioOutput = {
     scenarioName: "Apenas Comprando o Imóvel",
-    totalPatrimony: finalPropertyValue_BuyOnly,
-    propertyValueEndOfPeriod: finalPropertyValue_BuyOnly,
-    totalFinancingPaid: totalFinancingCost_BuyOnly, // Total interest + principal
-    totalInitialCashOutlay: totalInitialCashOutlay_BuyOnly,
+    totalPatrimony: buyOnly_eop_NetWorth,
+    propertyValueEndOfPeriod: finalPropertyValue_eop,
+    totalFinancingPaid: totalFinancingPaid_eop,
+    totalInitialCashOutlay: totalInitialCashOutlay_BuyScenarios,
     details: buyOnlyDetails,
+    monthlyBreakdown: buyOnlyBreakdown,
+    yearlyBreakdownForUI: deriveYearlyBreakdownFromMonthly(buyOnlyBreakdown, 'buyOnly'),
   };
-
-  // --- SCENARIO 2: BUY AND INVEST (Parallel) ---
-  let finalInvestments_BuyAndInvest = 0;
-  if (additionalMonthlyInvestmentIfBuying > 0) {
-      const monthlyInvestmentRate_Buy = Math.pow(1 + annualInvestmentReturnPercent / 100, 1/12) -1;
-      finalInvestments_BuyAndInvest = calculateFutureValue(0, additionalMonthlyInvestmentIfBuying, monthlyInvestmentRate_Buy, analysisPeriodMonths);
-  }
-  const totalAdditionalInvestedPrincipal = (additionalMonthlyInvestmentIfBuying || 0) * analysisPeriodMonths;
   
+  const finalParallelInvestment_eop = buyAndInvestBreakdown[analysisPeriodMonths-1]?.parallelInvestmentBalance_eom || 0;
+  const totalAdditionalInvestedPrincipal = (additionalMonthlyInvestmentIfBuying || 0) * analysisPeriodMonths;
+  const buyAndInvest_eop_NetWorth = buyAndInvestBreakdown[analysisPeriodMonths-1]?.netWorth_eom || 0;
+
   const buyAndInvestDetails: string[] = [
-    ...buyOnlyDetails.slice(0,3), // SAC info
-    `Valor do imóvel (${formatCurrency(finalPropertyValue_BuyOnly)}) + Saldo Investimentos (${formatCurrency(finalInvestments_BuyAndInvest)}).`,
+    ...buyOnlyDetails.slice(0,3),
+    `Valor do imóvel (${formatCurrency(finalPropertyValue_eop)}) + Saldo Investimentos (${formatCurrency(finalParallelInvestment_eop)}).`,
     `Aportes de ${formatCurrency(additionalMonthlyInvestmentIfBuying || 0)}/mês em investimentos.`
   ];
-
   const buyAndInvest: PropertyScenarioOutput = {
-    ...buyOnly, 
     scenarioName: "Comprando e Investindo em Paralelo",
-    totalPatrimony: finalPropertyValue_BuyOnly + finalInvestments_BuyAndInvest,
-    investmentsValueEndOfPeriod: finalInvestments_BuyAndInvest,
+    totalPatrimony: buyAndInvest_eop_NetWorth,
+    propertyValueEndOfPeriod: finalPropertyValue_eop,
+    investmentsValueEndOfPeriod: finalParallelInvestment_eop,
+    totalFinancingPaid: totalFinancingPaid_eop,
+    totalInitialCashOutlay: totalInitialCashOutlay_BuyScenarios,
     totalAdditionalInvestedPrincipal: totalAdditionalInvestedPrincipal,
     details: buyAndInvestDetails,
+    monthlyBreakdown: buyAndInvestBreakdown,
+    yearlyBreakdownForUI: deriveYearlyBreakdownFromMonthly(buyAndInvestBreakdown, 'buyAndInvest'),
   };
 
-  // --- SCENARIO 3: RENT AND INVEST ---
-  const initialInvestment_Rent = downPayment + financingCosts;
-  let currentRent = monthlyRent;
-  let totalRentPaid = 0;
-  let cumulativeInvestments_Rent = initialInvestment_Rent;
-  const monthlyInvestmentRate_Rent = Math.pow(1 + annualInvestmentReturnPercent / 100, 1/12) -1;
-  let totalPrincipalInvested_Rent = initialInvestment_Rent; // Starts with the initial saved amount
+  const finalRentInvestment_eop = rentAndInvestBreakdown[analysisPeriodMonths-1]?.investmentBalance_eom || 0;
+  const rentAndInvest_eop_NetWorth = rentAndInvestBreakdown[analysisPeriodMonths-1]?.netWorth_eom || 0;
+  const totalRentPaid_eop = rentAndInvestBreakdown.reduce((sum, m) => sum + (m.rentPaid_month || 0), 0);
+  // Calculate total principal invested in Rent & Invest scenario
+  const totalPrincipalInvested_Rent = totalInitialCashOutlay_BuyScenarios + rentAndInvestBreakdown.reduce((sum, m) => sum + (m.investmentContribution_month || 0), 0);
 
-  for (let month = 1; month <= analysisPeriodMonths; month++) {
-    cumulativeInvestments_Rent *= (1 + monthlyInvestmentRate_Rent);
-
-    const costOfOwningThisMonth = financingDetailsSAC.monthlyInstallments[month - 1] !== undefined 
-                                   ? financingDetailsSAC.monthlyInstallments[month - 1] 
-                                   : (loanAmount / analysisPeriodMonths); // Fallback if something is wrong with installments array
-
-    const netMonthlyFlowForInvestment = costOfOwningThisMonth - currentRent;
-    
-    cumulativeInvestments_Rent += netMonthlyFlowForInvestment;
-    // Only add to principal invested if it's a positive contribution
-    // This means if rent > mortgage payment, we are effectively "withdrawing" from opportunity cost savings for rent.
-    // The principal calculation tracks the "actual money put into investments".
-    if (netMonthlyFlowForInvestment > 0) {
-        totalPrincipalInvested_Rent += netMonthlyFlowForInvestment;
-    }
-    // If netMonthlyFlowForInvestment is negative, it means rent is higher than owning cost.
-    // This implies the initial sum (downpayment + costs) is being "consumed" faster to cover rent.
-    // The cumulativeInvestments_Rent handles this naturally.
-    // totalPrincipalInvested_Rent should reflect cash actually added to investments.
-
-    totalRentPaid += currentRent;
-
-    if (month % 12 === 0 && month < analysisPeriodMonths) {
-      currentRent *= (1 + annualRentIncreasePercent / 100);
-    }
-  }
 
   const rentAndInvest: PropertyScenarioOutput = {
     scenarioName: "Alugando e Investindo a Diferença",
-    totalPatrimony: cumulativeInvestments_Rent,
-    investmentsValueEndOfPeriod: cumulativeInvestments_Rent,
-    totalRentPaid: totalRentPaid,
+    totalPatrimony: rentAndInvest_eop_NetWorth,
+    investmentsValueEndOfPeriod: finalRentInvestment_eop,
+    totalRentPaid: totalRentPaid_eop,
     totalInitialCashOutlay: 0, 
     totalAdditionalInvestedPrincipal: totalPrincipalInvested_Rent,
     details: [
-        `Investimento inicial (entrada + custos evitados): ${formatCurrency(initialInvestment_Rent)}.`,
+        `Investimento inicial (entrada + custos evitados): ${formatCurrency(totalInitialCashOutlay_BuyScenarios)}.`,
         `Investiu/desinvestiu mensalmente a diferença entre parcela SAC e aluguel.`,
         `Financiamento simulado para comparação usaria Sistema SAC.`
-    ]
+    ],
+    monthlyBreakdown: rentAndInvestBreakdown,
+    yearlyBreakdownForUI: deriveYearlyBreakdownFromMonthly(rentAndInvestBreakdown, 'rentAndInvest'),
   };
 
   let bestOption: PropertyComparisonResults['bestOption'] = 'insufficientData';
@@ -223,8 +334,7 @@ export const calculatePropertyComparison = (inputs: PropertyComparatorInputs): P
     propertyValue, downPayment, financingTermMonths,
     annualInterestRatePercent, monthlyRent, annualRentIncreasePercent,
     annualPropertyAppreciationPercent, annualInvestmentReturnPercent,
-    additionalMonthlyInvestmentIfBuying
-  ].every(val => val !== null && val !== undefined && !isNaN(val));
+  ].every(val => val !== null && val !== undefined && !isNaN(val as number));
 
 
   if (allInputsValid && propertyValue > 0 && financingTermMonths > 0) {
@@ -232,9 +342,9 @@ export const calculatePropertyComparison = (inputs: PropertyComparatorInputs): P
       { name: 'buyOnly' as const, value: buyOnly.totalPatrimony },
       { name: 'buyAndInvest' as const, value: buyAndInvest.totalPatrimony },
       { name: 'rentAndInvest' as const, value: rentAndInvest.totalPatrimony },
-    ].filter(p => !isNaN(p.value) && isFinite(p.value)); // Filter out NaN/Infinity results before sorting
+    ].filter(p => !isNaN(p.value) && isFinite(p.value)); 
 
-    if (patrimonies.length === 3) { // Ensure all scenarios yielded valid numbers
+    if (patrimonies.length === 3) {
         patrimonies.sort((a, b) => b.value - a.value);
         bestOption = patrimonies[0].name;
         
