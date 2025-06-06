@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { HistoricalDataPoint, IndicatorModalData } from '../types';
@@ -13,31 +14,49 @@ interface HistoricalLineChartProps {
 
 const CustomTooltipContent: React.FC<any> = ({ active, payload, label, indicatorConfig }) => {
   if (active && payload && payload.length && indicatorConfig) {
-    const dataPoint = payload[0].payload; 
-    let formattedValue: string | number = payload[0].value; // Raw value from data
+    const rawValue = payload[0].value; // Raw value from data
+    let formattedValue: string;
 
-    if (indicatorConfig.isBillions && typeof payload[0].value === 'number') {
-        formattedValue = `${formatNumberForDisplay(payload[0].value / 1000, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-        if (indicatorConfig.isUSD) {
-            formattedValue += ` bi USD`;
-        } else {
-            formattedValue += ` bi`;
-        }
-    } else if (indicatorConfig.isUSD && typeof payload[0].value === 'number') { 
-      formattedValue = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: indicatorConfig.valuePrecision ?? 2, maximumFractionDigits: indicatorConfig.valuePrecision ?? 4 }).format(payload[0].value);
-    } else if ((indicatorConfig.isPercentage || indicatorConfig.valueSuffix?.includes('%')) && typeof payload[0].value === 'number' && !indicatorConfig.historicalYAxisLabel?.toLowerCase().includes("índice")) {
-      // Condition added: !indicatorConfig.historicalYAxisLabel?.toLowerCase().includes("índice")
-      // This prevents adding "%" to index numbers like IBC-Br in the tooltip.
-      formattedValue = `${formatNumberForDisplay(payload[0].value, { minimumFractionDigits: indicatorConfig.valuePrecision ?? 2, maximumFractionDigits: indicatorConfig.valuePrecision ?? 4 })}${indicatorConfig.valueSuffix || '%'}`;
-    } else if (indicatorConfig.historicalYAxisLabel?.toLowerCase().includes("índice") && typeof payload[0].value === 'number') {
-      // Specific formatting for index numbers (like IBC-Br)
-      formattedValue = formatNumberForDisplay(payload[0].value, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      // Suffix for index can be added here if desired, e.g., " pts"
-    } else if (typeof payload[0].value === 'number') { 
-      formattedValue = formatNumberForDisplay(payload[0].value, { minimumFractionDigits: indicatorConfig.valuePrecision ?? 2, maximumFractionDigits: indicatorConfig.valuePrecision ?? 4 });
-      if(indicatorConfig.valueSuffix && !indicatorConfig.valueSuffix.includes('%') && !indicatorConfig.historicalYAxisLabel?.toLowerCase().includes("índice")) {
+    const displayPrecision = indicatorConfig.valuePrecision ?? 2;
+    const maxPrecision = Math.max(displayPrecision, 4); // Ensure at least 2, but up to 4 if specified for some types
+
+    // 1. Handle displayDivisor first if present
+    if (indicatorConfig.displayDivisor && indicatorConfig.displayDivisor !== 0 && typeof rawValue === 'number') {
+        const dividedValue = rawValue / indicatorConfig.displayDivisor;
+        const prefix = indicatorConfig.displayPrefix || '';
+        // Suffix from config, could be "bi", "tri", "%", or empty
+        const suffix = indicatorConfig.displaySuffixOverride !== undefined 
+                       ? indicatorConfig.displaySuffixOverride 
+                       : (indicatorConfig.valueSuffix || ''); 
+        
+        formattedValue = `${prefix}${formatNumberForDisplay(dividedValue, { minimumFractionDigits: displayPrecision, maximumFractionDigits: displayPrecision })}${suffix}`;
+    } 
+    // 2. Handle PTAX (isUSD flag means value is BRL from PTAX) when not using displayDivisor logic
+    else if (indicatorConfig.isUSD && typeof rawValue === 'number') { 
+      formattedValue = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: displayPrecision, maximumFractionDigits: 4 }).format(rawValue);
+    } 
+    // 3. Handle percentages
+    else if ((indicatorConfig.isPercentage || indicatorConfig.valueSuffix?.includes('%')) && typeof rawValue === 'number' && !indicatorConfig.historicalYAxisLabel?.toLowerCase().includes("índice")) {
+      formattedValue = `${formatNumberForDisplay(rawValue, { minimumFractionDigits: displayPrecision, maximumFractionDigits: maxPrecision })}${indicatorConfig.valueSuffix || '%'}`;
+    } 
+    // 4. Handle "Índice" type labels
+    else if (indicatorConfig.historicalYAxisLabel?.toLowerCase().includes("índice") && typeof rawValue === 'number') {
+      formattedValue = formatNumberForDisplay(rawValue, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); // Indices often have 2 decimal places
+      if(indicatorConfig.valueSuffix && !indicatorConfig.valueSuffix.includes('%')) {
         formattedValue += indicatorConfig.valueSuffix;
       }
+    } 
+    // 5. Handle general numbers
+    else if (typeof rawValue === 'number') { 
+      const prefix = indicatorConfig.displayPrefix || '';
+      const suffix = indicatorConfig.displaySuffixOverride !== undefined 
+                     ? indicatorConfig.displaySuffixOverride 
+                     : (indicatorConfig.valueSuffix || '');
+      formattedValue = `${prefix}${formatNumberForDisplay(rawValue, { minimumFractionDigits: displayPrecision, maximumFractionDigits: maxPrecision })}${suffix}`;
+    } 
+    // 6. Fallback
+    else {
+      formattedValue = String(rawValue);
     }
     
     let formattedDate = label;
@@ -128,21 +147,32 @@ const HistoricalLineChart: React.FC<HistoricalLineChartProps> = ({ data, indicat
   }
 
   const yAxisTickFormatter = (value: number): string => {
-    if (indicatorConfig.isBillions) { // If the raw data is in millions, this will format to billions
-        return `${(value / 1000).toFixed(1)} bi`; 
+    const displayPrecision = indicatorConfig.valuePrecision ?? 2;
+    const maxPrecision = Math.max(displayPrecision, 4);
+
+    if (indicatorConfig.displayDivisor && indicatorConfig.displayDivisor !== 0) {
+        const dividedValue = value / indicatorConfig.displayDivisor;
+        // Suffix for axis should be compact, prefer displaySuffixOverride or a simple unit if relevant
+        const suffix = indicatorConfig.displaySuffixOverride || (indicatorConfig.historicalYAxisLabel?.includes('%') || indicatorConfig.valueSuffix?.includes('%') ? '%' : '');
+        return `${formatNumberForDisplay(dividedValue, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}${suffix}`;
     }
-    if (indicatorConfig.isUSD && !indicatorConfig.isBillions) { // For PTAX like values (not billions)
-      return value.toLocaleString('pt-BR', { minimumFractionDigits: indicatorConfig.valuePrecision ?? 2, maximumFractionDigits: indicatorConfig.valuePrecision ?? 2});
+    if (indicatorConfig.isUSD) { // Handles PTAX (value is BRL from PTAX)
+      return formatNumberForDisplay(value, { minimumFractionDigits: displayPrecision, maximumFractionDigits: 4 });
     }
-    if (indicatorConfig.historicalYAxisLabel?.toLowerCase().includes("índice") || (indicatorConfig.valueSuffix && !indicatorConfig.valueSuffix.includes('%'))) {
-      // For index numbers (like IBC-Br) or other non-percentage, non-currency numbers
-       return value.toLocaleString('pt-BR', { minimumFractionDigits: indicatorConfig.valuePrecision ?? 2, maximumFractionDigits: indicatorConfig.valuePrecision ?? 2 });
+    if (indicatorConfig.historicalYAxisLabel?.toLowerCase().includes("índice")) {
+      return formatNumberForDisplay(value, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
+    // For percentages, the Y-axis label often already contains "%", so just the number.
     if (indicatorConfig.isPercentage || indicatorConfig.valueSuffix?.includes('%')) {
-      return `${value.toFixed(indicatorConfig.valuePrecision ?? 2)}`;
+      return formatNumberForDisplay(value, { minimumFractionDigits: displayPrecision, maximumFractionDigits: displayPrecision });
     }
     // Default for general numbers
-    return value.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: indicatorConfig.valuePrecision ?? 0 });
+    const numberMagnitude = Math.abs(value);
+    let fractionDigitsToShow = 0;
+    if (numberMagnitude > 0 && numberMagnitude < 1) fractionDigitsToShow = displayPrecision; // Show decimals for small numbers
+    else if (numberMagnitude < 100) fractionDigitsToShow = 1; // Show one decimal for mid-range numbers
+    
+    return formatNumberForDisplay(value, { minimumFractionDigits: fractionDigitsToShow, maximumFractionDigits: fractionDigitsToShow });
   };
   
   let yDomain: [number | 'auto', number | 'auto'] = ['auto', 'auto'];

@@ -1,5 +1,5 @@
 
-import { InputFormData, ComprehensiveInputs, AvailableIndicatorForTerminal } from './types';
+import { InputFormData, ComprehensiveInputs, AvailableIndicatorForTerminal, UpfrontVsInstallmentsInputs } from './types';
 
 export const DEFAULT_INPUT_VALUES: InputFormData = {
   initialInvestment: 1000,
@@ -28,6 +28,11 @@ export const CHART_COLORS = {
   ipca: '#F59E0B',           // Amber-500
   ibovespa: '#10B981',       // Emerald-500
   cdi: '#8B5CF6',            // Violet-500
+
+  // For Upfront vs Installments Chart
+  upfrontAmount: '#10B981', // emerald-500
+  totalInstallments: '#EF4444', // red-500
+  npvInstallments: '#F59E0B', // amber-500
 };
 
 // For Fixed Income Comparator
@@ -91,3 +96,12 @@ export const TERMINAL_CHART_LINE_COLORS = [
   '#D946EF', // fuchsia-500
   '#F59E0B', // amber-500
 ];
+
+// For Upfront vs Installments Calculator
+export const DEFAULT_UPFRONT_VS_INSTALLMENTS_INPUTS: UpfrontVsInstallmentsInputs = {
+  productPrice: 1000,
+  upfrontDiscountPercent: 10,
+  numberOfInstallments: 12,
+  installmentInterestRatePercentMonthly: 1.99,
+  alternativeInvestmentRatePercentMonthly: 0.8, // Approx. 10% annual CDI
+};

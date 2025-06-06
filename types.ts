@@ -117,7 +117,8 @@ export type AppView =
   'compoundInterest' | 
   'fixedIncomeComparator' | 
   'comprehensiveComparator' | 
-  'rentVsBuyCalculator' | // New View
+  'rentVsBuyCalculator' |
+  'upfrontVsInstallments' | // New View for "À Vista ou Parcelado"
   'macroEconomicPanel' | 
   'macroEconomicTerminal' | 
   'bitcoinChartDetail' | 
@@ -231,7 +232,7 @@ export interface IndicatorModalData {
   sourceText?: string;
   isUSD?: boolean; 
   isPercentage?: boolean; 
-  isBillions?: boolean; 
+  // isBillions?: boolean; // Replaced by displayDivisor & displaySuffixOverride
   valuePrecision?: number; 
   historicalSeriesName?: string; 
   historicalYAxisLabel?: string; 
@@ -430,4 +431,29 @@ export interface PropertyComparisonResults {
   bestOption: 'buyOnly' | 'buyAndInvest' | 'rentAndInvest' | 'comparable' | 'insufficientData';
   analysisPeriodYears: number;
   recommendationText: string;
+}
+
+// Types for "Upfront vs Installments" Calculator
+export interface UpfrontVsInstallmentsInputs {
+  productPrice: number | null;
+  upfrontDiscountPercent: number | null;
+  numberOfInstallments: number | null;
+  installmentInterestRatePercentMonthly: number | null; // Interest charged by seller for financing
+  alternativeInvestmentRatePercentMonthly: number | null; // User's opportunity cost rate
+}
+
+export interface UpfrontVsInstallmentsResults {
+  amountToPayUpfront: number;
+  installmentValue: number;
+  totalPaidInInstallments: number;
+  npvOfInstallments: number;
+  bestOption: 'upfront' | 'installments' | 'equivalent' | 'insufficientData';
+  savingsOrGain: number; // Positive if upfront is better (savings), positive if installments better (gain by investing)
+  recommendationText: string;
+  inputsUsed: UpfrontVsInstallmentsInputs; // To pass to chart or display
+}
+
+export interface BarChartDataPoint {
+  name: string;
+  valor: number;
 }

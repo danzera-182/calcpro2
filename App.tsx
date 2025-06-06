@@ -10,6 +10,7 @@ import { Card } from './components/ui/Card';
 import Button from './components/ui/Button';
 import FixedIncomeComparator from './components/FixedIncomeComparator';
 import ComprehensiveComparator from './components/ComprehensiveComparator'; 
+import UpfrontVsInstallmentsCalculator from './components/UpfrontVsInstallmentsCalculator.tsx'; // New Calculator
 import BitcoinRateDisplay from './components/BitcoinRateDisplay'; 
 import UsdtRateDisplay from './components/UsdtRateDisplay';
 import MacroEconomicPanel from './components/MacroEconomicPanel'; 
@@ -30,6 +31,7 @@ const viewToPathMap: Record<AppView, string> = {
   fixedIncomeComparator: '/fixed-income-comparator',
   comprehensiveComparator: '/comprehensive-comparator',
   rentVsBuyCalculator: '/rent-vs-buy', 
+  upfrontVsInstallments: '/upfront-vs-installments', // New Path
   macroEconomicPanel: '/macro-economic-panel',
   macroEconomicTerminal: '/macro-economic-terminal',
   bitcoinChartDetail: '/bitcoin',
@@ -255,9 +257,6 @@ const App: React.FC = () => {
       loadFinancialData();
     }
   }, [activeView, bitcoinPriceInfo, isLoadingBitcoinPrice, bitcoinPriceError, usdtPriceInfo, isLoadingUsdtPrice, usdtPriceError]);
-
-  // REMOVED getSubtitle function as it's no longer used for pageSubtitle.
-  // const getSubtitle = (): string | null => { ... };
   
   const formatUnixTimestampForDisplay = (unixTimestamp?: number): string => {
     if (!unixTimestamp) return 'N/D';
@@ -343,7 +342,6 @@ const App: React.FC = () => {
                   <Button variant="primary" className="mt-4 w-full" tabIndex={-1}>Acessar Comparador</Button>
                 </Card.Content>
               </Card>
-              {/* New Card for Rent vs. Buy Calculator */}
               <Card 
                 className="cursor-pointer hover:shadow-premium-hover transition-shadow duration-200 ease-in-out transform hover:-translate-y-1"
                 onClick={() => setActiveView('rentVsBuyCalculator')}
@@ -355,6 +353,22 @@ const App: React.FC = () => {
                 <Card.Content>
                   <p className="text-sm text-slate-600 dark:text-slate-400">
                     Compare os cenários de alugar e investir a diferença versus financiar a compra de um imóvel, projetando seu patrimônio total.
+                  </p>
+                  <Button variant="primary" className="mt-4 w-full" tabIndex={-1}>Acessar Calculadora</Button>
+                </Card.Content>
+              </Card>
+              {/* New Card for Upfront vs Installments */}
+              <Card 
+                className="cursor-pointer hover:shadow-premium-hover transition-shadow duration-200 ease-in-out transform hover:-translate-y-1"
+                onClick={() => setActiveView('upfrontVsInstallments')}
+                aria-label="Acessar Calculadora Pagar à Vista ou Parcelado"
+              >
+                <Card.Header>
+                  <Card.Title>💰 Pagar à Vista ou Parcelado?</Card.Title>
+                </Card.Header>
+                <Card.Content>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                    Decida se é melhor pagar à vista com desconto ou parcelar (com ou sem juros), considerando o custo de oportunidade do seu dinheiro.
                   </p>
                   <Button variant="primary" className="mt-4 w-full" tabIndex={-1}>Acessar Calculadora</Button>
                 </Card.Content>
@@ -557,6 +571,15 @@ const App: React.FC = () => {
               &larr; Voltar para seleção de ferramentas
             </Button>
             <PropertyComparator />
+          </>
+        );
+      case 'upfrontVsInstallments': // New Case for "À Vista ou Parcelado"
+        return (
+          <>
+            <Button onClick={() => setActiveView('selector')} variant="secondary" size="md" className="mb-6" aria-label="Voltar para seleção de ferramentas">
+              &larr; Voltar para seleção de ferramentas
+            </Button>
+            <UpfrontVsInstallmentsCalculator />
           </>
         );
       case 'macroEconomicPanel':
@@ -850,8 +873,6 @@ const App: React.FC = () => {
     }
   };
   
-  // const pageSubtitle = getSubtitle(); // Subtitle logic is removed.
-
   return (
     <div className="min-h-screen">
       <header className="fixed top-0 left-0 right-0 z-50 bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg shadow-premium">
@@ -888,7 +909,6 @@ const App: React.FC = () => {
               </svg>
             </h1>
           </div>
-          {/* Subtitle div block removed from here */}
           <div className="absolute right-4 sm:right-6 top-1/2 -translate-y-1/2">
             <ThemeToggle />
           </div>

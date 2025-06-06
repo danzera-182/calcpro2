@@ -28,7 +28,6 @@ const CardRoot: React.FC<CardRootProps> = ({ children, className, ...rest }) => 
         bg-white dark:bg-slate-800/80 
         backdrop-blur-xl 
         shadow-premium rounded-2xl 
-        overflow-hidden 
         border border-gray-200 dark:border-slate-700
         ${className || ''}
       `} 

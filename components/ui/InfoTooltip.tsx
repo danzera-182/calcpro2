@@ -107,7 +107,7 @@ const InfoTooltip: React.FC<InfoTooltipProps> = ({
           ref={tooltipRef}
           id={`tooltip-text-${String(text).substring(0,10)}`}
           role="document"
-          className={`absolute ${positionClasses} ${tooltipWidthClass} p-3 text-xs text-white bg-slate-700 dark:bg-slate-800 rounded-lg shadow-xl z-20 whitespace-normal ring-1 ring-slate-600 dark:ring-slate-700`}
+          className={`absolute ${positionClasses} ${tooltipWidthClass} p-3 text-xs text-white bg-slate-700 dark:bg-slate-800 rounded-lg shadow-xl z-50 whitespace-normal ring-1 ring-slate-600 dark:ring-slate-700`}
           onMouseEnter={handleTooltipInteractionEnter}
           onMouseLeave={handleTooltipInteractionLeave}
         >
