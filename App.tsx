@@ -20,7 +20,7 @@ import UsdtDetailedChart from './components/UsdtDetailedChart';
 import RSSStoriesFeed from './components/RSSStoriesFeed';
 import NewsSummaryDetailView from './components/NewsSummaryDetailView';
 import EconomicCalendarWidget from './components/EconomicCalendarWidget';
-import AnbimaDataViewer from './components/AnbimaDataViewer';
+// import AnbimaDataViewer from './components/AnbimaDataViewer'; // Removed AnbimaDataViewer
 import PropertyComparator from './components/PropertyComparator'; 
 import { fetchLatestBitcoinPrice, fetchLatestUsdtPrice } from './utils/economicIndicatorsAPI';
 import { formatCurrency, formatNumberForDisplay, formatNumber } from './utils/formatters';
@@ -39,7 +39,7 @@ const viewToPathMap: Record<AppView, string> = {
   rssStoriesFeed: '/stories-feed',
   newsSummaryDetail: '/news-summary',
   economicCalendarWidget: '/economic-calendar-widget',
-  anbimaDataViewer: '/anbima-data',
+  // anbimaDataViewer: '/anbima-data', // Removed Anbima path
   experimentalFeatures: '/experimental-features', 
 };
 
@@ -459,32 +459,7 @@ const App: React.FC = () => {
                   <Button variant="primary" className="mt-4 w-full" tabIndex={-1}>Ver Notícias</Button>
                 </Card.Content>
               </Card>
-              <Card 
-                className="cursor-pointer hover:shadow-premium-hover transition-shadow duration-200 ease-in-out transform hover:-translate-y-1"
-                onClick={() => setActiveView('anbimaDataViewer')}
-                aria-label="Acessar Dados da Anbima"
-              >
-                <Card.Header>
-                  <Card.Title>
-                     <div className="flex items-center">
-                        🏛️ Dados Anbima
-                        <span 
-                          className="ml-2 inline-flex items-center bg-cyan-100 dark:bg-cyan-700/50 text-cyan-700 dark:text-cyan-300 text-xs font-semibold px-2 py-0.5 rounded-full"
-                          title="Esta funcionalidade está em fase de testes (requer configuração de API Key da Anbima)."
-                        >
-                          <WarningIcon className="w-3 h-3 mr-1 text-cyan-500 dark:text-cyan-400" />
-                          EM TESTES
-                        </span>
-                      </div>
-                  </Card.Title>
-                </Card.Header>
-                <Card.Content>
-                  <p className="text-sm text-slate-600 dark:text-slate-400">
-                    Visualize dados da Anbima, como a curva de juros ETTJ. (Requer configuração de API Key).
-                  </p>
-                  <Button variant="primary" className="mt-4 w-full" tabIndex={-1}>Acessar Dados</Button>
-                </Card.Content>
-              </Card>
+              {/* Anbima Card Removed */}
             </div>
           </>
         );
@@ -856,15 +831,15 @@ const App: React.FC = () => {
             <EconomicCalendarWidget />
           </>
         );
-      case 'anbimaDataViewer':
-        return (
-          <>
-            <Button onClick={() => setActiveView('experimentalFeatures')} variant="secondary" size="md" className="mb-6" aria-label="Voltar para Funcionalidades Experimentais">
-              &larr; Voltar para Funcionalidades Experimentais
-            </Button>
-            <AnbimaDataViewer />
-          </>
-        );
+      // case 'anbimaDataViewer': // Removed AnbimaDataViewer case
+      //   return (
+      //     <>
+      //       <Button onClick={() => setActiveView('experimentalFeatures')} variant="secondary" size="md" className="mb-6" aria-label="Voltar para Funcionalidades Experimentais">
+      //         &larr; Voltar para Funcionalidades Experimentais
+      //       </Button>
+      //       <AnbimaDataViewer />
+      //     </>
+      //   );
       default:
         if (activeView !== 'selector') {
             setActiveView('selector'); 
@@ -919,9 +894,10 @@ const App: React.FC = () => {
         {renderContent()}
       </main>
 
-      <footer className="container mx-auto px-4 sm:px-6 mt-12 text-center text-xs sm:text-sm text-slate-500 dark:text-slate-400 py-4 border-t border-gray-200 dark:border-slate-800">
+      <footer className="container mx-auto px-4 sm:px-6 mt-12 text-center text-xs sm:text-sm text-slate-500 dark:text-slate-400 py-4 border-t border-slate-200 dark:border-slate-800">
         <p>&copy; {new Date().getFullYear()} The Wealth Lab.</p>
-        <p className="mt-1">Criado por Daniel Camargo, CFP® e Instagram: @_cmdan</p>
+        <p className="mt-1">Criado com 🧠 para planejadores e investidores</p>
+        <p className="mt-1">Daniel Camargo, CFP® | Instagram: @_cmdan</p>
         <p className="mt-1">Lembre-se: esta é uma ferramenta de simulação. Rentabilidade passada não garante rentabilidade futura. O comparativo histórico utiliza dados reais (estáticos e limitados a um período específico) para fins ilustrativos. Consulte um profissional.</p>
       </footer>
     </div>

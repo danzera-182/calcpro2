@@ -1,3 +1,4 @@
+
 export interface InputFormData {
   initialInvestment: number;
   contributionValue: number; 
@@ -126,7 +127,7 @@ export type AppView =
   'rssStoriesFeed' |
   'newsSummaryDetail' |
   'economicCalendarWidget' |
-  'anbimaDataViewer' |
+  // 'anbimaDataViewer' | // Removed AnbimaDataViewer
   'experimentalFeatures';
 
 export interface ArticleForSummary { 
@@ -331,15 +332,7 @@ export interface StorySource {
   color?: string; 
 }
 
-export interface AnbimaCurvePoint {
-  codigo_curva: string; // Alterado de 'curva'
-  data_curva: string;    // YYYY-MM-DD
-  data_referencia: string; // YYYY-MM-DD
-  data_vencimento: string; // Alterado de 'vencimento', YYYY-MM-DD
-  dias_corridos: number;
-  taxa_referencia: number; // % a.a.
-  pu_referencia?: number; // Mantido como opcional, pois o novo endpoint básico tem.
-}
+// Removed AnbimaCurvePoint type
 
 // Types for Rent vs. Buy Calculator
 export interface PropertyComparatorInputs {
@@ -457,3 +450,4 @@ export interface BarChartDataPoint {
   name: string;
   valor: number;
 }
+
